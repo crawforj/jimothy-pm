@@ -45,10 +45,20 @@ a button in the app. This guide only describes what you can click on today.
 
 ## 2. Getting set up
 
-**Prerequisites:** Python 3.12+. No database server, no accounts, no cloud
-dependency — everything is a local SQLite file.
+**Prerequisites:** Python 3.12+ (or just Docker — see below). No database
+server, no accounts, no cloud dependency — everything is a local SQLite
+file.
 
-From the `jimothy/` project folder:
+**Fastest path:** run `setup.bat` (Windows, double-click it) or `./setup.sh`
+(macOS/Linux) from the project folder — it creates the virtual environment,
+installs dependencies, generates a real secret key into `.env`, migrates,
+and loads the example portfolio, all in one step. Safe to re-run; it never
+re-loads example data over a real portfolio you've already started
+entering. Have Docker instead? `docker compose up` does the same thing
+without touching your system's Python at all. See the main
+[README](README.md#quick-start) for all three setup options in detail.
+
+**Manual path**, from the `jimothy/` project folder:
 
 ```powershell
 pip install -r requirements.txt

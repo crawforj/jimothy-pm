@@ -28,28 +28,80 @@ Projects, Staff, and Reports are all built and working. See
 
 ## Quick start
 
+Whichever path you use, you'll land on a populated portfolio, not an empty
+screen — an example project set (a grant deadline, a recurring weekly
+report, a board-pending proposal, several completed tasks) loads
+automatically, with every date computed relative to today so it's never
+stale no matter when you install it.
+
+### Option A — Docker (no Python install needed)
+
+If you have [Docker Desktop](https://www.docker.com/products/docker-desktop/)
+and nothing else, this is the least fiddly path — it never touches your
+system's Python at all:
+
 ```bash
-git clone <this repo's URL>
-cd jimothy
+git clone https://github.com/crawforj/jimothy-pm.git
+cd jimothy-pm
+docker compose up
+```
+
+Open <http://127.0.0.1:8000/>. `Ctrl+C` stops it; `docker compose up` again
+picks up right where you left off (your data persists in `db.sqlite3` next
+to the code).
+
+### Option B — one-command setup script (Python, no manual venv/activate)
+
+If you have Python 3.12+ installed, these scripts handle everything else —
+creating the virtual environment, installing dependencies, generating a
+real secret key, and loading the example data — in one step:
+
+**Windows:** double-click `setup.bat` (or run it from a terminal).
+**macOS/Linux:** `./setup.sh`
+
+Both are safe to re-run — re-running only sets up what's missing and never
+re-loads example data over a real portfolio you've already started
+entering.
+
+### Option C — manual setup
+
+For full control, or if you want to see exactly what's happening:
+
+```bash
+git clone https://github.com/crawforj/jimothy-pm.git
+cd jimothy-pm
 python -m venv .venv && source .venv/bin/activate   # or .venv\Scripts\activate on Windows
 pip install -r requirements.txt
+cp .env.example .env    # then edit .env and set a real DJANGO_SECRET_KEY --
+                         # generate one with:
+                         # python -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())"
 python manage.py migrate
 python manage.py seed_demo
 python manage.py runserver
 ```
 
-Open <http://127.0.0.1:8000/> and you'll land on a populated portfolio, not
-an empty screen — `seed_demo` loads a varied example (a grant deadline, a
-recurring weekly report, a board-pending proposal, several completed tasks)
-with every date computed relative to today, so it's never stale no matter
-when you run it. It's part of the normal setup, not an optional extra —
-skip it only once you're ready to clear it out and enter your own portfolio
-(it always wipes prior seed data before reloading, so it's safe to re-run,
-and once you have real data in Jimothy, running it again would erase that
-too — just don't run it again after that point). Requires Python 3.12+.
+Requires Python 3.12+. Open <http://127.0.0.1:8000/>.
 
-Copy `.env.example` to `.env` and set a real `DJANGO_SECRET_KEY` before
-running this anywhere but your own machine — see the comments in that file.
+### Troubleshooting
+
+- **Windows: "running scripts is disabled on this system"** — this is
+  PowerShell's default execution policy blocking `.ps1` files, not anything
+  specific to Jimothy. `setup.bat` already works around it (it invokes
+  `setup.ps1` with `-ExecutionPolicy Bypass` for just that one run, nothing
+  persistent). If you're running `setup.ps1` directly instead of via the
+  `.bat`, either do the same (`powershell -ExecutionPolicy Bypass -File
+  setup.ps1`) or use Option A/C instead.
+- **"python: command not found" / "python is not recognized"** — Python
+  isn't installed, or wasn't added to PATH during install. Reinstall from
+  [python.org](https://www.python.org/downloads/) and check "Add python.exe
+  to PATH" (Windows) — or try `python3` instead of `python` (macOS/Linux,
+  where `python` alone sometimes isn't aliased).
+- **"That port is already in use"** — something else is already using
+  8000. Run on a different port: `python manage.py runserver 8001` (or,
+  for Docker, edit the `"8000:8000"` line in `docker-compose.yml`).
+- **"No module named django"** — your virtual environment isn't active, or
+  dependencies aren't installed. Re-run the setup script, or manually
+  `pip install -r requirements.txt` with the `.venv` active.
 
 ## Contributing
 

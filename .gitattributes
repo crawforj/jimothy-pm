@@ -1,0 +1,7 @@
+# Force LF for anything that must run as-is on Unix (a stray CRLF in a
+# shebang line breaks the interpreter), regardless of a contributor's local
+# git autocrlf setting. Windows scripts are fine either way but pinned to
+# CRLF for consistency with how Windows tools normally save them.
+* text=auto eol=lf
+*.bat text eol=crlf
+*.ps1 text eol=crlf

@@ -1,5 +1,6 @@
 *.sqlite3
 db.sqlite3
+db.sqlite3.seeded
 __pycache__/
 *.pyc
 .venv/

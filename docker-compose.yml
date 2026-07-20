@@ -1,0 +1,12 @@
+services:
+  jimothy:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app
+    environment:
+      # Fine for trying Jimothy out locally via Docker. Override both with
+      # real values (see .env.example) before running this anywhere else.
+      - DJANGO_SECRET_KEY=docker-local-only-change-me-before-any-real-deployment
+      - DJANGO_DEBUG=True
