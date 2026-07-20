@@ -1,0 +1,29 @@
+{
+  "name": "Jimothy",
+  "build": {
+    "dockerfile": "../Dockerfile",
+    "context": ".."
+  },
+  // Keep the Dockerfile's own CMD (migrate && seed_demo-if-fresh && runserver)
+  // as the container's foreground process instead of replacing it with the
+  // devcontainer default sleep-forever placeholder -- this is the same,
+  // already-tested command docker-compose.yml uses, so Codespaces and local
+  // Docker behave identically.
+  "overrideCommand": false,
+  "containerEnv": {
+    "DJANGO_SECRET_KEY": "codespaces-local-only-change-me-before-any-real-deployment",
+    "DJANGO_DEBUG": "True"
+  },
+  "forwardPorts": [8000],
+  "portsAttributes": {
+    "8000": {
+      "label": "Jimothy",
+      "onAutoForward": "openPreview"
+    }
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": ["ms-python.python"]
+    }
+  }
+}

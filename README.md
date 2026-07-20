@@ -47,6 +47,18 @@ stale no matter when you install it.
 > Leave that window open while Jimothy is running — closing it stops the
 > app. Option B's `setup.bat` skips all of this: just double-click the file.
 
+### Try it instantly — no install at all (recommended if you just want to look)
+
+[![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/crawforj/jimothy-pm)
+
+Click that button. GitHub builds and runs Jimothy in a temporary cloud
+environment — nothing touches your computer, no terminal, no Docker, no
+Python install, not even a `git clone`. After a minute or two of "Setting
+up your codespace," a browser preview pops up automatically already
+showing Jimothy running. Requires a (free) GitHub account. This is the
+single easiest way to see whether Jimothy is for you before installing it
+for real with one of the options below.
+
 ### Option A — Docker (no Python install needed)
 
 If you have [Docker Desktop](https://www.docker.com/products/docker-desktop/)
