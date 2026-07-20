@@ -351,9 +351,10 @@ def focus(request):
     task_by_id = {t.pk: t for t in tasks_qs}
 
     staff_id = request.GET.get("staff")
-    if staff_id:
-        person = get_object_or_404(Staff, pk=staff_id, active=True)
-    else:
+    person = None
+    if staff_id and staff_id.isdigit():
+        person = Staff.objects.filter(pk=staff_id, active=True).first()
+    if person is None:
         person = (Staff.objects.filter(active=True, is_manager=True).first()
                  or Staff.objects.filter(active=True).first())
 
