@@ -1,10 +1,13 @@
 name: Release
 
-# Builds the standalone Windows .exe and attaches it to a GitHub Release
-# whenever a version tag is pushed (e.g. v0.1.1). Blocked by the same
-# account-level Actions billing gate as ci.yml until that's resolved --
-# v0.1.0 was built and published manually in the meantime (see
-# desktop_app.py's commit and the release notes for how/what was verified).
+# Builds standalone executables (Windows, Linux, macOS) and attaches them
+# to a GitHub Release whenever a version tag is pushed (e.g. v0.1.1).
+# Blocked by the same account-level Actions billing gate as ci.yml until
+# that's resolved -- v0.1.0's Windows and Linux builds were built and
+# published manually in the meantime (see desktop_app.py's commit and the
+# release notes for how/what was verified on each). macOS is untested
+# entirely -- no Mac hardware was available to verify this job locally the
+# way the other two were; treat it as unverified until it's actually run.
 
 on:
   push:
@@ -45,3 +48,76 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: dist/Jimothy.exe
+
+  build-linux-binary:
+    runs-on: ubuntu-latest
+    # Built inside Debian bookworm specifically, not the runner's own
+    # (newer) glibc -- a binary built on a newer glibc than the one it's
+    # run on fails with "GLIBC_x.xx not found", confirmed the hard way
+    # while building v0.1.0's Linux binary locally. Bookworm is old enough
+    # to run on most current distros while still being current-ish.
+    container: python:3.12-slim-bookworm
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: |
+          apt-get update -qq && apt-get install -y -qq binutils
+          pip install --quiet -r requirements.txt pyinstaller
+      - name: Build Jimothy-linux
+        run: |
+          DJANGO_PATH=$(python -c "import django, os; print(os.path.dirname(django.__file__))")
+          pyinstaller --onefile --name Jimothy \
+            --add-data "core/templates:core/templates" \
+            --add-data "core/static:core/static" \
+            --add-data "$DJANGO_PATH/contrib/admin/templates:django/contrib/admin/templates" \
+            --add-data "$DJANGO_PATH/contrib/admin/static:django/contrib/admin/static" \
+            --add-data "$DJANGO_PATH/contrib/auth/templates:django/contrib/auth/templates" \
+            --hidden-import core.management.commands.seed_demo \
+            --hidden-import core.management.commands.migrate \
+            desktop_app.py
+          mv dist/Jimothy dist/Jimothy-linux
+      - name: Smoke test the build
+        run: |
+          export DJANGO_SECRET_KEY=ci-build-smoke-test-only
+          python manage.py check
+      - name: Attach to the release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/Jimothy-linux
+
+  build-macos-binary:
+    # UNVERIFIED -- no Mac hardware was available to test this job or the
+    # binary it produces. First real run of this job should be treated as
+    # a trial, not assumed correct just because CI is green.
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install pyinstaller
+      - name: Build Jimothy-macos
+        run: |
+          DJANGO_PATH=$(python -c "import django, os; print(os.path.dirname(django.__file__))")
+          pyinstaller --onefile --name Jimothy \
+            --add-data "core/templates:core/templates" \
+            --add-data "core/static:core/static" \
+            --add-data "$DJANGO_PATH/contrib/admin/templates:django/contrib/admin/templates" \
+            --add-data "$DJANGO_PATH/contrib/admin/static:django/contrib/admin/static" \
+            --add-data "$DJANGO_PATH/contrib/auth/templates:django/contrib/auth/templates" \
+            --hidden-import core.management.commands.seed_demo \
+            --hidden-import core.management.commands.migrate \
+            desktop_app.py
+          mv dist/Jimothy dist/Jimothy-macos
+          chmod +x dist/Jimothy-macos
+      - name: Smoke test the build
+        run: |
+          export DJANGO_SECRET_KEY=ci-build-smoke-test-only
+          python manage.py check
+      - name: Attach to the release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/Jimothy-macos

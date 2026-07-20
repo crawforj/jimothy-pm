@@ -59,16 +59,23 @@ showing Jimothy running. Requires a (free) GitHub account. This is the
 single easiest way to see whether Jimothy is for you before installing it
 for real with one of the options below.
 
-### Windows — download and run (no install at all)
+### Download and run (no install at all)
 
-**[⬇ Download Jimothy.exe](https://github.com/crawforj/jimothy-pm/releases/latest/download/Jimothy.exe)**
-— one file, no Python, no Docker, no terminal. Double-click it. Windows
-will show an "Unknown publisher" warning the first time (this build isn't
-code-signed) — click **More info → Run anyway**. It sets itself up in the
-same folder you put it in and opens your browser automatically once it's
-ready. Your data (`db.sqlite3`, next to the .exe) stays there between
-launches — back it up by copying that one file. macOS/Linux packaged
-builds don't exist yet; use one of the other options below on those.
+One file, no Python, no Docker, no terminal (well — Linux needs one `chmod`).
+It sets itself up in the same folder you put it in, loads example data, and
+opens your browser automatically once it's ready. Your data (`db.sqlite3`,
+next to the binary) stays there between launches — back it up by copying
+that one file.
+
+- **Windows: [⬇ Download Jimothy.exe](https://github.com/crawforj/jimothy-pm/releases/latest/download/Jimothy.exe)**
+  — double-click it. Windows will show an "Unknown publisher" warning the
+  first time (this build isn't code-signed) — click **More info → Run anyway**.
+- **Linux: [⬇ Download Jimothy-linux](https://github.com/crawforj/jimothy-pm/releases/latest/download/Jimothy-linux)**
+  — `chmod +x Jimothy-linux && ./Jimothy-linux`. Built on Debian 12
+  (bookworm) for broad compatibility; if your distro's glibc is
+  significantly older than that, use Docker instead.
+- **macOS**: not built yet — no Mac hardware available to build or test one.
+  Use Docker, the setup scripts, or GitHub Codespaces below in the meantime.
 
 ### Option A — Docker (no Python install needed)
 
