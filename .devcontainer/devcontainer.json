@@ -4,16 +4,23 @@
     "dockerfile": "../Dockerfile",
     "context": ".."
   },
-  // Keep the Dockerfile's own CMD (migrate && seed_demo-if-fresh && runserver)
-  // as the container's foreground process instead of replacing it with the
-  // devcontainer default sleep-forever placeholder -- this is the same,
-  // already-tested command docker-compose.yml uses, so Codespaces and local
-  // Docker behave identically.
-  "overrideCommand": false,
+  // Standard devcontainer lifecycle hooks, not the Dockerfile's own CMD --
+  // overrideCommand:false + relying on the Dockerfile's CMD as the
+  // container's foreground process was unreliable in practice (observed:
+  // a blank port-8000 preview panel with no server actually answering).
+  // These hooks are the well-documented, predictable mechanism instead:
+  // postCreateCommand runs exactly once, when the container is first
+  // built, so migrate+seed never re-run on every subsequent Codespace
+  // resume; postStartCommand runs on every start/resume and just launches
+  // the (already-migrated) server, which is fast -- shrinking the window
+  // where the auto-forwarded port might get previewed before anything is
+  // actually listening on it.
   "containerEnv": {
     "DJANGO_SECRET_KEY": "codespaces-local-only-change-me-before-any-real-deployment",
     "DJANGO_DEBUG": "True"
   },
+  "postCreateCommand": "python manage.py migrate && (test -f db.sqlite3.seeded || (python manage.py seed_demo && touch db.sqlite3.seeded))",
+  "postStartCommand": "nohup python manage.py runserver 0.0.0.0:8000 > /tmp/jimothy-server.log 2>&1 &",
   "forwardPorts": [8000],
   "portsAttributes": {
     "8000": {

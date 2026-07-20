@@ -60,6 +60,29 @@ DEBUG = os.environ.get("DJANGO_DEBUG", "True") == "True"
 
 ALLOWED_HOSTS = [h.strip() for h in os.environ.get("DJANGO_ALLOWED_HOSTS", "").split(",") if h.strip()]
 
+# CSRF trusted origins -- needed whenever the browser's Origin differs from
+# Django's own idea of its host, e.g. behind an HTTPS reverse-proxy/tunnel
+# (Codespaces, ngrok, a real deployment behind nginx). Self-hosters behind
+# their own proxy set DJANGO_CSRF_TRUSTED_ORIGINS; Codespaces is
+# auto-detected below since it's a supported zero-config path (see
+# .devcontainer/) and CODESPACES is an env var GitHub itself sets, not
+# something a random deployment could spoof into gaining trusted-origin
+# status.
+CSRF_TRUSTED_ORIGINS = [o.strip() for o in os.environ.get("DJANGO_CSRF_TRUSTED_ORIGINS", "").split(",") if o.strip()]
+
+if os.environ.get("CODESPACES") == "true":
+    _codespace_name = os.environ.get("CODESPACE_NAME", "")
+    _forwarding_domain = os.environ.get("GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN", "app.github.dev")
+    if _codespace_name:
+        _forwarded_host = "%s-8000.%s" % (_codespace_name, _forwarding_domain)
+        ALLOWED_HOSTS.append(_forwarded_host)
+        CSRF_TRUSTED_ORIGINS.append("https://%s" % _forwarded_host)
+    # VS Code's embedded Simple Browser can present the forwarded port's
+    # origin/host as plain localhost rather than the public forwarding URL
+    # -- trust that too, only inside an actual Codespace.
+    ALLOWED_HOSTS.append("localhost")
+    CSRF_TRUSTED_ORIGINS.append("https://localhost:8000")
+
 
 # Application definition
 
