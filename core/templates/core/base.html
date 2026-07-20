@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Jimothy — {% block title %}{% endblock %}</title>
+<style>
+  /* Nocturne-derived tokens (claude.ai/design project "Nocturne", adapted
+     2026-07-20): dark ground, a single blurple accent used as a line/outline
+     rather than a flood, Inter-first type. --color-warn/--color-ok are
+     Jimothy's own additions — Nocturne is a deliberate mono-accent scheme
+     with no built-in warning/positive role, but Jimothy's feasibility
+     warnings and over-capacity flags need a real semantic color, not just
+     the one accent reused. No @import of Inter from Google Fonts — that
+     would add a network dependency this project deliberately avoids (plan
+     §8); the stack falls back to system-ui/Segoe UI wherever Inter isn't
+     already installed. */
+  :root {
+    color-scheme: dark;
+    --color-bg: #161826;
+    --color-surface: #232532;
+    --color-text: #e9e9ed;
+    --color-accent: #9184d9;
+    --color-warn: #e0a458;
+    --color-ok: #6fae7c;
+    --color-divider: color-mix(in srgb, #e9e9ed 16%, transparent);
+    --font-heading: "Inter", system-ui, "Segoe UI", sans-serif;
+    --font-body: "Inter", system-ui, "Segoe UI", sans-serif;
+    --space-2: 5.6px; --space-3: 8.4px; --space-4: 11.2px; --space-6: 16.8px;
+    --radius-sm: 4px; --radius-md: 8px; --radius-lg: 14px;
+  }
+  * { box-sizing: border-box; }
+  body { background: var(--color-bg); color: var(--color-text); font-family: var(--font-body);
+         font-size: 15px; max-width: 64rem; margin: 0 auto; padding: 1.5rem 1rem 4rem;
+         line-height: 1.55; }
+  header { display: flex; align-items: center; gap: 1rem; margin-bottom: .8rem; flex-wrap: wrap; }
+  header img { width: 64px; height: 64px; flex-shrink: 0; }
+  h1 { font-family: var(--font-heading); font-weight: 500; font-size: 1.6rem;
+       letter-spacing: -0.015em; margin: 0 0 .2rem; }
+  .sub { margin: 0; color: color-mix(in srgb, var(--color-text) 65%, transparent); }
+  h2 { font-family: var(--font-heading); font-weight: 500; font-size: 1.15rem;
+       border-bottom: 1px solid var(--color-divider); padding-bottom: .3rem; }
+  h3 { font-family: var(--font-heading); font-weight: 500; font-size: 1rem; margin-bottom: .3rem; }
+  .card { background: var(--color-surface); border-radius: var(--radius-md);
+          padding: var(--space-4); margin-bottom: 1.2rem; }
+  .person-header { display: flex; justify-content: space-between; align-items: baseline; }
+  .capacity { font-size: .9rem; color: color-mix(in srgb, var(--color-text) 65%, transparent); }
+  ol.tasklist, ul.tasklist { list-style: none; margin: .6rem 0 0; padding: 0; }
+  ol.tasklist li, ul.tasklist li { display: flex; justify-content: space-between; gap: 1rem;
+                    padding: .5rem 0; border-top: 1px solid var(--color-divider); }
+  ol.tasklist li:first-child, ul.tasklist li:first-child { border-top: none; }
+  .proj-tag { font-size: .78rem; color: color-mix(in srgb, var(--color-text) 60%, transparent); }
+  .hours { white-space: nowrap; font-variant-numeric: tabular-nums;
+           color: color-mix(in srgb, var(--color-text) 80%, transparent); }
+  .warn-box { background: color-mix(in srgb, var(--color-warn) 14%, var(--color-surface));
+              border-left: 3px solid var(--color-warn);
+              border-radius: var(--radius-md); padding: .8rem 1rem; margin-bottom: .6rem; }
+  .chase-box { background: color-mix(in srgb, var(--color-accent) 12%, var(--color-surface));
+               border-left: 3px solid var(--color-accent);
+               border-radius: var(--radius-md); padding: .8rem 1rem; }
+  .ok-box { background: color-mix(in srgb, var(--color-ok) 12%, var(--color-surface));
+            border-left: 3px solid var(--color-ok);
+            border-radius: var(--radius-md); padding: .8rem 1rem; }
+  .empty { opacity: .7; font-style: italic; }
+  footer { margin-top: 2rem; font-size: .85rem;
+           color: color-mix(in srgb, var(--color-text) 55%, transparent); }
+  a { color: var(--color-accent); text-underline-offset: 3px; }
+  nav.primary { margin-bottom: 1.4rem; }
+  nav.primary ul { list-style: none; display: flex; flex-wrap: wrap; gap: .3rem 1rem;
+                   margin: 0; padding: .5rem 0; border-top: 1px solid var(--color-divider);
+                   border-bottom: 1px solid var(--color-divider); }
+  nav.primary a { text-decoration: none; padding: .2rem .3rem; border-radius: var(--radius-sm);
+                  color: var(--color-text); font-size: .95rem; }
+  nav.primary a:hover, nav.primary a[aria-current="page"] { color: var(--color-accent); }
+  table { border-collapse: collapse; width: 100%; margin: .6rem 0; font-size: .95rem; }
+  table caption { text-align: left; font-weight: 500; margin-bottom: .4rem; }
+  th, td { text-align: left; padding: .4rem .6rem; border-bottom: 1px solid var(--color-divider); }
+  th { font-weight: 500; font-size: .78rem; letter-spacing: .04em; text-transform: uppercase;
+       color: color-mix(in srgb, var(--color-text) 60%, transparent); }
+  .skip-link { position: absolute; left: -999px; top: auto; }
+  .skip-link:focus { position: static; display: inline-block; margin-bottom: .5rem; }
+  .visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+                      overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+  .board { display: grid; grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+           gap: .8rem; }
+  .board .column { background: var(--color-surface); border-radius: var(--radius-md);
+                    padding: .6rem; }
+  .board .column h3 { margin-top: 0; }
+  .pill { display: inline-block; font-size: .72rem; letter-spacing: .02em; padding: .15rem .55rem;
+          border-radius: var(--radius-lg); background: var(--color-surface);
+          color: color-mix(in srgb, var(--color-text) 80%, transparent);
+          border: 1px solid var(--color-divider); }
+  .pill.warn-pill { border-color: var(--color-warn); color: var(--color-warn);
+                     background: color-mix(in srgb, var(--color-warn) 14%, var(--color-surface)); }
+  .bar-cell { display: flex; align-items: center; gap: .6rem; }
+  .bar-track { background: var(--color-divider); border-radius: var(--radius-sm); height: 10px;
+               flex: 1 1 auto; }
+  .bar-fill { background: var(--color-accent); border-radius: var(--radius-sm); height: 10px;
+              min-width: 2px; display: block; }
+  .bar-fill.over { background: var(--color-warn); }
+  form.inline { display: inline; }
+  button.link-btn { background: none; border: none; color: var(--color-accent); cursor: pointer;
+                     padding: 0; font: inherit; text-decoration: underline;
+                     text-underline-offset: 3px; }
+  /* Raw form controls (Week's retro note, Settings' weight fields, Focus's
+     start/done) had no styling before — invisible against the old
+     background-less design, but a bare browser-default control reads as
+     broken against a deliberately dark page, so these get the same
+     outlined-not-filled treatment as Nocturne's .input/.btn-primary. */
+  input[type="text"], input[type="number"], textarea, select {
+    width: 100%; font: inherit; font-size: .95rem; color: var(--color-text);
+    background: var(--color-bg); border: 1px solid var(--color-divider);
+    border-radius: var(--radius-md); padding: .4rem .6rem;
+  }
+  input[type="text"]:hover, input[type="number"]:hover, textarea:hover {
+    border-color: color-mix(in srgb, var(--color-text) 45%, transparent);
+  }
+  input[type="text"]:focus-visible, input[type="number"]:focus-visible, textarea:focus-visible {
+    border-color: var(--color-accent); outline-offset: 0;
+  }
+  button[type="submit"]:not(.link-btn) {
+    display: inline-flex; align-items: center; justify-content: center;
+    font: inherit; font-size: .9rem; cursor: pointer; color: var(--color-accent);
+    background: transparent; border: 1px solid var(--color-accent);
+    border-radius: var(--radius-md); padding: .4rem 1rem;
+  }
+  button[type="submit"]:not(.link-btn):hover {
+    background: color-mix(in srgb, var(--color-accent) 12%, transparent);
+  }
+  :focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+  ::selection { background: color-mix(in srgb, var(--color-accent) 30%, transparent); }
+  {% block extra_style %}{% endblock %}
+</style>
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to main content</a>
+<header>
+  <img src="/static/core/jimothy.svg" alt="">
+  <div>
+    <h1>{% block header %}Jimothy{% endblock %}</h1>
+    {% block subheader %}{% endblock %}
+  </div>
+</header>
+
+<nav class="primary" aria-label="Primary">
+  <ul>
+    <li><a href="{% url 'today' %}" {% if request.resolver_match.url_name == 'today' %}aria-current="page"{% endif %}>Today</a></li>
+    <li><a href="{% url 'focus' %}" {% if request.resolver_match.url_name == 'focus' %}aria-current="page"{% endif %}>Focus</a></li>
+    <li><a href="{% url 'week' %}" {% if request.resolver_match.url_name == 'week' %}aria-current="page"{% endif %}>Week</a></li>
+    <li><a href="{% url 'month' %}" {% if request.resolver_match.url_name == 'month' %}aria-current="page"{% endif %}>Month</a></li>
+    <li><a href="{% url 'quarter' %}" {% if request.resolver_match.url_name == 'quarter' %}aria-current="page"{% endif %}>Quarter</a></li>
+    <li><a href="{% url 'year' %}" {% if request.resolver_match.url_name == 'year' %}aria-current="page"{% endif %}>Year</a></li>
+    <li><a href="{% url 'projects' %}" {% if request.resolver_match.url_name == 'projects' %}aria-current="page"{% endif %}>Projects</a></li>
+    <li><a href="{% url 'staff' %}" {% if request.resolver_match.url_name == 'staff' %}aria-current="page"{% endif %}>Staff</a></li>
+    <li><a href="{% url 'reports_index' %}" {% if request.resolver_match.url_name == 'reports_index' or request.resolver_match.url_name == 'report_detail' %}aria-current="page"{% endif %}>Reports</a></li>
+    <li><a href="{% url 'settings' %}" {% if request.resolver_match.url_name == 'settings' %}aria-current="page"{% endif %}>Settings</a></li>
+    <li><a href="/admin/">Admin</a></li>
+  </ul>
+</nav>
+
+<main id="main">
+{% block content %}{% endblock %}
+</main>
+
+<footer>
+  Jimothy — <a href="/admin/">admin</a>. {% block footer_note %}Phase 3 build.{% endblock %}
+</footer>
+</body>
+</html>

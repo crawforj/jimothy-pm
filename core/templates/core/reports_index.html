@@ -1,0 +1,22 @@
+{% extends "core/base.html" %}
+
+{% block title %}Reports{% endblock %}
+{% block header %}Reports{% endblock %}
+{% block subheader %}
+  <p class="sub">Weekly status per project</p>
+{% endblock %}
+
+{% block content %}
+  <section aria-labelledby="reports-h">
+    <h2 id="reports-h">Projects</h2>
+    {% if projects %}
+      <ul class="tasklist">
+        {% for p in projects %}
+          <li><a href="{% url 'report_detail' p.pk %}">{{ p.name }}</a><span class="hours">{{ p.get_status_display }}</span></li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="empty">No active projects to report on.</p>
+    {% endif %}
+  </section>
+{% endblock %}

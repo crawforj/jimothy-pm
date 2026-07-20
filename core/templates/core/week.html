@@ -1,0 +1,78 @@
+{% extends "core/base.html" %}
+
+{% block title %}Week{% endblock %}
+{% block header %}This week{% endblock %}
+{% block subheader %}
+  <p class="sub">{{ week_start|date:"M j" }} – {{ week_end|date:"M j, Y" }} — the sprint board</p>
+{% endblock %}
+
+{% block content %}
+  <section aria-labelledby="commit-h">
+    <h2 id="commit-h">Commitment vs. capacity</h2>
+    <p>
+      {{ committed_hours }}h committed of {{ capacity_hours }}h available this week.
+      {% if sprint.velocity_actual is not None %}
+        Last close-out: {{ sprint.velocity_actual }}h landed.
+      {% endif %}
+    </p>
+    {% if over_committed %}
+      <p class="warn-box">{{ committed_hours }}h committed against {{ capacity_hours }}h available — more is committed than the week has room for. That's fine; something will roll forward.</p>
+    {% endif %}
+  </section>
+
+  <section aria-labelledby="board-h">
+    <h2 id="board-h">Sprint board</h2>
+    <div class="board">
+      {% for col in board %}
+        <div class="column">
+          <h3>{{ col.label }} <span class="pill">{{ col.tasks|length }}</span></h3>
+          {% if col.tasks %}
+            <ul class="tasklist">
+              {% for t in col.tasks %}
+                <li>
+                  <span>{{ t.title }}{% if t.recur_every_days %} <span class="pill">↻{{ t.recur_every_days }}d</span>{% endif %} <span class="proj-tag">— {{ t.project.name }}</span></span>
+                  <form class="inline" method="post" action="{% url 'week_commit' t.pk %}">
+                    {% csrf_token %}
+                    <button type="submit" class="link-btn" aria-label="Remove {{ t.title }} from this sprint">uncommit</button>
+                  </form>
+                </li>
+              {% endfor %}
+            </ul>
+          {% else %}
+            <p class="empty">Nothing here.</p>
+          {% endif %}
+        </div>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section aria-labelledby="candidates-h">
+    <h2 id="candidates-h">Commit candidates</h2>
+    <p class="sub">Top of the scored queue, not yet committed this week.</p>
+    {% if candidates %}
+      <ol class="tasklist">
+        {% for s in candidates %}
+          <li>
+            <span>{{ s.task.title }} <span class="proj-tag">score {{ s.score|floatformat:2 }}</span></span>
+            <form class="inline" method="post" action="{% url 'week_commit' s.task.id %}">
+              {% csrf_token %}
+              <button type="submit" class="link-btn">commit</button>
+            </form>
+          </li>
+        {% endfor %}
+      </ol>
+    {% else %}
+      <p class="empty">No open candidates right now.</p>
+    {% endif %}
+  </section>
+
+  <section aria-labelledby="closeout-h">
+    <h2 id="closeout-h">Friday close-out</h2>
+    <form method="post" action="{% url 'week_closeout' %}">
+      {% csrf_token %}
+      <label for="retro_note">{{ retro_prompt_text }}</label><br>
+      <textarea id="retro_note" name="retro_note" rows="3" style="width:100%; margin: .4rem 0;">{{ sprint.retro_note }}</textarea>
+      <button type="submit">Close out this sprint</button>
+    </form>
+  </section>
+{% endblock %}

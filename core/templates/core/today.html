@@ -1,0 +1,87 @@
+{% extends "core/base.html" %}
+
+{% block title %}Today{% endblock %}
+{% block header %}{{ greeting }}{% endblock %}
+{% block subheader %}
+  <p class="sub">{{ today|date:"l, F j, Y" }} — {{ project_count }} active project{{ project_count|pluralize }}, {{ task_count }} open task{{ task_count|pluralize }}</p>
+{% endblock %}
+
+{% block content %}
+  {% if warnings %}
+  <section aria-labelledby="warnings-h">
+    <h2 id="warnings-h">Worth a look</h2>
+    {% for w in warnings %}
+      <div class="warn-box">{{ w }}</div>
+    {% endfor %}
+  </section>
+  {% endif %}
+
+  {% if needs_triage %}
+  <section aria-labelledby="triage-h">
+    <h2 id="triage-h">Needs triage</h2>
+    <p class="sub">{{ triage_note }}</p>
+    <div class="chase-box">
+      <ul>
+        {% for t in needs_triage %}
+          <li><strong>{{ t.title }}</strong> ({{ t.project.name }}) — <a href="/admin/core/task/{{ t.pk }}/change/">add an estimate</a></li>
+        {% endfor %}
+      </ul>
+    </div>
+  </section>
+  {% endif %}
+
+  {% if blocked or waiting %}
+  <section aria-labelledby="chase-h">
+    <h2 id="chase-h">Chase list</h2>
+    <div class="chase-box">
+      <ul>
+        {% for t in blocked %}
+          <li><strong>{{ t.title }}</strong> ({{ t.project.name }}) — blocked{% if t.blocked_by %} by {{ t.blocked_by }}{% endif %}{% if t.blocked_since %} since {{ t.blocked_since }}{% endif %}</li>
+        {% endfor %}
+        {% for t in waiting %}
+          <li><strong>{{ t.title }}</strong> ({{ t.project.name }}) — waiting on external party</li>
+        {% endfor %}
+      </ul>
+    </div>
+  </section>
+  {% endif %}
+
+  <section aria-labelledby="today-h">
+    <h2 id="today-h">Today, per person</h2>
+    {% for p in people %}
+      <div class="card">
+        <div class="person-header">
+          <strong>{{ p.staff.name }}</strong>
+          <span class="capacity">{{ p.hours_free|floatformat:1 }}h free of {{ p.staff.nominal_hours_per_day|floatformat:0 }}h nominal</span>
+        </div>
+        {% if p.over_wip %}<p class="warn-box">{{ wip_warning }}</p>{% endif %}
+        {% if p.entries %}
+          <ol class="tasklist">
+            {% for e in p.entries %}
+              <li>
+                <span>{{ forloop.counter }}. {{ e.task.title }}{% if e.task.recur_every_days %} <span class="pill">↻{{ e.task.recur_every_days }}d</span>{% endif %}
+                  <span class="proj-tag">— {{ e.project.name }}</span></span>
+                <span class="hours">{{ e.hours }}h</span>
+              </li>
+            {% endfor %}
+          </ol>
+        {% else %}
+          <p class="empty">{{ no_tasks_message }}</p>
+        {% endif %}
+      </div>
+    {% empty %}
+      <p class="empty">No active staff yet — add people and tasks in <a href="/admin/">/admin/</a> to see a real queue here.</p>
+    {% endfor %}
+  </section>
+
+  {% if unassigned %}
+  <section aria-labelledby="unassigned-h">
+    <h2 id="unassigned-h">Unassigned, top of queue</h2>
+    <ol class="tasklist">
+      {% for s in unassigned %}
+        <li><span>{{ s.task.title }}</span><span class="hours">score {{ s.score|floatformat:2 }}</span></li>
+      {% endfor %}
+    </ol>
+  </section>
+  {% endif %}
+{% endblock %}

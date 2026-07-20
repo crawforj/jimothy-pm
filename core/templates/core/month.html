@@ -1,0 +1,44 @@
+{% extends "core/base.html" %}
+
+{% block title %}Month{% endblock %}
+{% block header %}This month{% endblock %}
+{% block subheader %}
+  <p class="sub">Milestones due through {{ horizon|date:"M j, Y" }}</p>
+{% endblock %}
+
+{% block content %}
+  <section aria-labelledby="milestones-h">
+    <h2 id="milestones-h">Upcoming milestones</h2>
+    {% if rows %}
+      <table>
+        <caption class="visually-hidden">Upcoming milestones, soonest first</caption>
+        <thead>
+          <tr>
+            <th scope="col">Milestone</th>
+            <th scope="col">Project</th>
+            <th scope="col">Due</th>
+            <th scope="col">Days left</th>
+            <th scope="col">Open tasks</th>
+            <th scope="col">Remaining hours</th>
+            <th scope="col">Critical path</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in rows %}
+            <tr>
+              <td>{{ row.milestone.name }}</td>
+              <td>{{ row.milestone.project.name }}</td>
+              <td>{{ row.milestone.due_date|date:"M j" }}</td>
+              <td>{{ row.days_remaining }}</td>
+              <td>{{ row.open_tasks }}</td>
+              <td>{{ row.remaining_hours }}h</td>
+              <td>{% if row.on_critical_path %}<span class="pill">critical</span>{% endif %}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <p class="empty">No milestones due in the next 8 weeks. Add some in <a href="/admin/">/admin/</a>.</p>
+    {% endif %}
+  </section>
+{% endblock %}

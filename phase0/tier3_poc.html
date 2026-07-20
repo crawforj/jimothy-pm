@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Jimothy Tier 3 proof of concept</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { font-family: Segoe UI, system-ui, sans-serif; max-width: 44rem; margin: 2rem auto;
+         padding: 0 1rem; line-height: 1.5; }
+  h1 { font-size: 1.35rem; }
+  .note { background: rgba(165,140,20,.15); border: 1px solid rgba(165,140,20,.4);
+          border-radius: 8px; padding: .7rem 1rem; font-size: .92rem; }
+  table { border-collapse: collapse; width: 100%; margin: 1rem 0; }
+  th, td { border: 1px solid #888; padding: .35rem .6rem; text-align: left; }
+  th { background: rgba(128,128,128,.15); }
+  button { font-size: .95rem; padding: .35rem .9rem; margin-right: .5rem; }
+  #status { font-weight: 600; }
+</style>
+</head>
+<body>
+<h1>Jimothy Tier 3 proof of concept</h1>
+<p class="note"><strong>Scope note:</strong> this PoC loads sql.js from a CDN to prove the
+architecture (SQLite running entirely inside the browser, schema + data
+surviving a reload via IndexedDB). The <em>production</em> Tier 3 build
+(plan §8b) must vendor the sql.js wasm binary inline as a data: URI so it
+needs zero network access at all — that's a packaging step, not a design
+change, and this PoC is what proves the design works before doing it.</p>
+
+<p id="status">Loading sql.js…</p>
+
+<table aria-describedby="tcap">
+  <caption id="tcap">jimothy_project table (lives entirely in this browser tab)</caption>
+  <thead><tr><th>id</th><th>name</th><th>priority</th><th>deadline</th></tr></thead>
+  <tbody id="rows"></tbody>
+</table>
+
+<p>
+  <button id="addRow" type="button">Add a demo project row</button>
+  <button id="reload" type="button">Reload page (test persistence)</button>
+  <button id="reset" type="button">Reset stored database</button>
+</p>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/sql-wasm.js"></script>
+<script>
+"use strict";
+const DB_KEY = "jimothy_tier3_poc";
+let SQL, db;
+
+function openIdb() {
+  return new Promise((res, rej) => {
+    const rq = indexedDB.open("jimothy_tier3", 1);
+    rq.onupgradeneeded = () => rq.result.createObjectStore("kv");
+    rq.onsuccess = () => res(rq.result);
+    rq.onerror = () => rej(rq.error);
+  });
+}
+async function loadBytes() {
+  const idb = await openIdb();
+  return new Promise((res, rej) => {
+    const tx = idb.transaction("kv", "readonly").objectStore("kv").get(DB_KEY);
+    tx.onsuccess = () => res(tx.result || null);
+    tx.onerror = () => rej(tx.error);
+  });
+}
+async function saveBytes(bytes) {
+  const idb = await openIdb();
+  return new Promise((res, rej) => {
+    const tx = idb.transaction("kv", "readwrite").objectStore("kv").put(bytes, DB_KEY);
+    tx.onsuccess = res; tx.onerror = () => rej(tx.error);
+  });
+}
+
+function renderRows() {
+  const res = db.exec("SELECT id, name, priority, deadline FROM jimothy_project ORDER BY id");
+  const tbody = document.getElementById("rows");
+  tbody.innerHTML = "";
+  if (res.length) {
+    for (const row of res[0].values) {
+      const tr = document.createElement("tr");
+      tr.innerHTML = row.map(v => "<td></td>").join("");
+      row.forEach((v, i) => tr.children[i].textContent = v ?? "");
+      tbody.appendChild(tr);
+    }
+  }
+}
+
+async function main() {
+  SQL = await initSqlJs({ locateFile: f => "https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/" + f });
+  const existing = await loadBytes();
+  if (existing) {
+    db = new SQL.Database(new Uint8Array(existing));
+    document.getElementById("status").textContent =
+      "Loaded existing database from IndexedDB (persistence confirmed).";
+  } else {
+    db = new SQL.Database();
+    db.run(`CREATE TABLE jimothy_project (
+      id INTEGER PRIMARY KEY, name TEXT, priority TEXT, deadline TEXT)`);
+    db.run(`INSERT INTO jimothy_project (name, priority, deadline) VALUES
+      ('Community Outreach Grant Renewal', 'Critical', '2026-07-28')`);
+    await saveBytes(db.export());
+    document.getElementById("status").textContent =
+      "Created a fresh in-browser database and saved it to IndexedDB.";
+  }
+  renderRows();
+}
+
+document.getElementById("addRow").addEventListener("click", async () => {
+  const n = "Demo row " + new Date().toLocaleTimeString();
+  db.run("INSERT INTO jimothy_project (name, priority, deadline) VALUES (?, 'Normal', NULL)", [n]);
+  await saveBytes(db.export());
+  renderRows();
+});
+document.getElementById("reload").addEventListener("click", () => location.reload());
+document.getElementById("reset").addEventListener("click", async () => {
+  const idb = await openIdb();
+  idb.transaction("kv", "readwrite").objectStore("kv").delete(DB_KEY);
+  location.reload();
+});
+
+main().catch(e => {
+  document.getElementById("status").textContent = "FAILED: " + e.message +
+    " (this machine likely has no path to the sql.js CDN — expected on an " +
+    "offline/locked-down machine; production Tier 3 must vendor the wasm inline).";
+});
+</script>
+</body>
+</html>

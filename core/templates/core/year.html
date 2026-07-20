@@ -1,0 +1,60 @@
+{% extends "core/base.html" %}
+
+{% block title %}Year{% endblock %}
+{% block header %}This year{% endblock %}
+{% block subheader %}
+  <p class="sub">Portfolio roadmap through {{ horizon|date:"M j, Y" }}</p>
+{% endblock %}
+{% block content %}
+  <section aria-labelledby="budget-h">
+    <h2 id="budget-h">Annual staffing budget</h2>
+    {% if total_budget %}
+      <p>{{ total_consumed }} of {{ total_budget }} staff-days consumed across the portfolio.</p>
+    {% else %}
+      <p class="empty">No project has a staffing budget set yet. {{ total_consumed }} staff-days logged so far regardless.</p>
+    {% endif %}
+  </section>
+
+  <section aria-labelledby="deadlines-h">
+    <h2 id="deadlines-h">Deadlines in the next 12 months</h2>
+    {% if dated_projects %}
+      <table>
+        <caption class="visually-hidden">Projects with a deadline in the next year, soonest first</caption>
+        <thead><tr><th scope="col">Project</th><th scope="col">Deadline</th><th scope="col">Priority</th></tr></thead>
+        <tbody>
+          {% for p in dated_projects %}
+            <tr><td>{{ p.name }}</td><td>{{ p.deadline|date:"M j, Y" }}</td><td>{{ p.get_priority_class_display }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <p class="empty">No dated projects in the next year.</p>
+    {% endif %}
+
+    {% if ongoing_projects %}
+      <p class="sub">Ongoing, no deadline: {% for p in ongoing_projects %}{{ p.name }}{% if not forloop.last %}, {% endif %}{% endfor %}</p>
+    {% endif %}
+  </section>
+
+  <section aria-labelledby="density-h">
+    <h2 id="density-h">Deadline density by month</h2>
+    <p class="sub">Project deadlines and milestone due dates, so pileups are visible months out — read the numbers, the bars are a secondary cue.</p>
+    <table>
+      <caption class="visually-hidden">Count of deadlines and milestones due per month</caption>
+      <thead><tr><th scope="col">Month</th><th scope="col">Count</th></tr></thead>
+      <tbody>
+        {% for d in density %}
+          <tr>
+            <td>{{ d.month|date:"M Y" }}</td>
+            <td>
+              <div class="bar-cell">
+                <span class="bar-track"><span class="bar-fill" style="width: {{ d.pct }}%;"></span></span>
+                <span class="hours">{{ d.count }}</span>
+              </div>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+{% endblock %}

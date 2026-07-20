@@ -1,0 +1,75 @@
+{% extends "core/base.html" %}
+
+{% block title %}Focus{% endblock %}
+{% block header %}Focus{% endblock %}
+{% block subheader %}
+  <p class="sub">One thing at a time{% if person %} — {{ person.name }}{% endif %}. The rest of today's queue is deliberately hidden here.</p>
+{% endblock %}
+{% block extra_style %}
+  .focus-card { text-align: center; padding: 3rem 1.5rem; }
+  .focus-card h2 { font-size: 1.7rem; border: none; margin: .3rem 0 .6rem; }
+  .focus-actions { margin-top: 1.2rem; display: flex; gap: .8rem; justify-content: center; flex-wrap: wrap; }
+  .focus-actions button { font-size: 1rem; padding: .5rem 1.4rem; }
+{% endblock %}
+
+{% block content %}
+  {% if staff_list|length > 1 %}
+    <nav aria-label="Switch person" class="sub" style="margin-bottom: 1rem;">
+      {% for s in staff_list %}
+        <a href="{% url 'focus' %}?staff={{ s.pk }}" {% if person.pk == s.pk %}aria-current="page"{% endif %}>{{ s.name }}</a>{% if not forloop.last %} · {% endif %}
+      {% endfor %}
+    </nav>
+  {% endif %}
+
+  {% if entry %}
+    <div class="card focus-card">
+      <p class="sub">{{ entry.task.project.name }}</p>
+      <h2>{{ entry.task.title }}</h2>
+      <p class="capacity">{{ entry.hours }}h estimated</p>
+
+      {% if started_at %}
+        <p id="focus-timer" data-start="{{ started_at }}" aria-live="polite">Running…</p>
+      {% endif %}
+
+      <div class="focus-actions">
+        {% if started_at %}
+          <form method="post" action="{% url 'focus_done' entry.task.pk %}">
+            {% csrf_token %}
+            <input type="hidden" name="staff_id" value="{{ person.pk }}">
+            <button type="submit">Done</button>
+          </form>
+        {% else %}
+          <form method="post" action="{% url 'focus_start' entry.task.pk %}">
+            {% csrf_token %}
+            <input type="hidden" name="staff_id" value="{{ person.pk }}">
+            <button type="submit">Start</button>
+          </form>
+        {% endif %}
+        <form method="post" action="{% url 'focus_skip' entry.task.pk %}">
+          {% csrf_token %}
+          <input type="hidden" name="staff_id" value="{{ person.pk }}">
+          <button type="submit" class="link-btn">not this one — skip for today</button>
+        </form>
+      </div>
+    </div>
+    {% if started_at %}
+    <script>
+      (function () {
+        var el = document.getElementById("focus-timer");
+        if (!el) return;
+        var start = new Date(el.dataset.start);
+        function tick() {
+          var s = Math.max(0, Math.floor((Date.now() - start.getTime()) / 1000));
+          var h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
+          function pad(n) { return String(n).padStart(2, "0"); }
+          el.textContent = "Running " + h + "h " + pad(m) + "m " + pad(sec) + "s";
+        }
+        tick();
+        setInterval(tick, 1000);
+      })();
+    </script>
+    {% endif %}
+  {% else %}
+    <p class="empty">{{ no_task_message }}</p>
+  {% endif %}
+{% endblock %}

@@ -1,0 +1,44 @@
+{% extends "core/base.html" %}
+
+{% block title %}Projects{% endblock %}
+{% block header %}Projects{% endblock %}
+{% block subheader %}
+  <p class="sub">Dashboard view — edit projects, milestones, tasks and risks in <a href="/admin/">/admin/</a></p>
+{% endblock %}
+
+{% block content %}
+  <section aria-labelledby="projects-h">
+    <h2 id="projects-h">All projects</h2>
+    {% if rows %}
+      <table>
+        <caption class="visually-hidden">All projects with status, deadline, burn and feasibility</caption>
+        <thead>
+          <tr>
+            <th scope="col">Project</th>
+            <th scope="col">Status</th>
+            <th scope="col">Priority</th>
+            <th scope="col">Deadline</th>
+            <th scope="col">Open tasks</th>
+            <th scope="col">Burn (AC / PV, staff-days)</th>
+            <th scope="col">Slip</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in rows %}
+            <tr>
+              <td><a href="/admin/core/project/{{ row.project.pk }}/change/">{{ row.project.name }}</a></td>
+              <td>{{ row.project.get_status_display }}</td>
+              <td>{{ row.project.get_priority_class_display }}</td>
+              <td>{{ row.project.deadline|date:"M j, Y"|default:"—" }}</td>
+              <td>{{ row.open_task_count }}</td>
+              <td>{% if row.ev %}{{ row.ev.ac }} / {{ row.ev.pv }}{% else %}—{% endif %}</td>
+              <td>{% if row.slip_days > 0 %}<span class="pill">{{ row.slip_days }}d</span>{% else %}on track{% endif %}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <p class="empty">No projects yet. Add one in <a href="/admin/">/admin/</a>.</p>
+    {% endif %}
+  </section>
+{% endblock %}

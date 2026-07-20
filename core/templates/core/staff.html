@@ -1,0 +1,68 @@
+{% extends "core/base.html" %}
+
+{% block title %}Staff{% endblock %}
+{% block header %}Staff{% endblock %}
+{% block subheader %}
+  <p class="sub">Roster, capacity, and calibration — edit in <a href="/admin/">/admin/</a></p>
+{% endblock %}
+
+{% block content %}
+  <section aria-labelledby="roster-h">
+    <h2 id="roster-h">Roster</h2>
+    {% if rows %}
+      {% for row in rows %}
+        <div class="card">
+          <div class="person-header">
+            <strong>{{ row.staff.name }}{% if row.staff.is_manager %} <span class="pill">manager</span>{% endif %}{% if not row.staff.active %} <span class="pill">inactive</span>{% endif %}</strong>
+            <span class="capacity">{{ row.available_hours_per_day }}h/day available ({{ row.staff.nominal_hours_per_day|floatformat:0 }}h nominal × {{ row.staff.focus_factor }} focus factor)</span>
+          </div>
+          <p class="sub">{{ row.staff.role }}</p>
+          {% if row.unavailable_today %}
+            <p class="warn-box">Unavailable today.</p>
+          {% endif %}
+          {% if row.upcoming_unavailability %}
+            <p><strong>Upcoming unavailability:</strong></p>
+            <ul class="tasklist">
+              {% for u in row.upcoming_unavailability %}
+                <li><span>{{ u.reason|default:"Unavailable" }}</span><span class="hours">{{ u.start_date|date:"M j" }}–{{ u.end_date|date:"M j" }}</span></li>
+              {% endfor %}
+            </ul>
+          {% endif %}
+          {% if row.overall_factor or row.tag_factors %}
+            <p><strong>Calibration:</strong>
+              {% if row.overall_factor %}overall {{ row.overall_factor }}×{% endif %}
+              {% if row.tag_factors %}
+                {% for tag, factor in row.tag_factors.items %}{{ tag }}: {{ factor }}×{% if not forloop.last %}, {% endif %}{% endfor %}
+              {% endif %}
+            </p>
+          {% else %}
+            <p class="empty">No calibration history yet — needs completed tasks with logged actual hours.</p>
+          {% endif %}
+          {% if row.weekly_load %}
+            <p><strong>Load, next {{ row.weekly_load|length }} weeks:</strong></p>
+            <table>
+              <caption class="visually-hidden">{{ row.staff.name }}'s assigned hours vs. capacity by week</caption>
+              <thead><tr><th scope="col">Week of</th><th scope="col">Load vs. capacity</th></tr></thead>
+              <tbody>
+                {% for wl in row.weekly_load %}
+                  <tr>
+                    <td>{{ wl.week_start|date:"M j" }}</td>
+                    <td>
+                      <div class="bar-cell">
+                        <span class="bar-track"><span class="bar-fill{% if wl.over_capacity %} over{% endif %}" style="width: {{ wl.pct }}%;"></span></span>
+                        <span class="hours">{{ wl.load_hours }}h / {{ wl.capacity_hours }}h</span>
+                        {% if wl.over_capacity %}<span class="pill warn-pill">over capacity</span>{% endif %}
+                      </div>
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          {% endif %}
+        </div>
+      {% endfor %}
+    {% else %}
+      <p class="empty">No staff yet. Add someone in <a href="/admin/">/admin/</a>.</p>
+    {% endif %}
+  </section>
+{% endblock %}

@@ -1,0 +1,10 @@
+*.sqlite3
+db.sqlite3
+__pycache__/
+*.pyc
+.venv/
+.env
+*.log
+backups/
+phase0/spike_result.txt
+phase0/python-embed/

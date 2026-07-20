@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Jimothy Phase 0 — Tier 3 browser probe</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { font-family: Segoe UI, system-ui, sans-serif; max-width: 46rem;
+         margin: 2rem auto; padding: 0 1rem; line-height: 1.5; }
+  h1 { font-size: 1.4rem; }
+  table { border-collapse: collapse; width: 100%; margin: 1rem 0; }
+  th, td { border: 1px solid #888; padding: .4rem .6rem; text-align: left; }
+  th { background: rgba(128,128,128,.15); }
+  .pass { color: #1a7f37; font-weight: 700; }
+  .fail { color: #b91c1c; font-weight: 700; }
+  @media (prefers-color-scheme: dark) {
+    .pass { color: #4ade80; } .fail { color: #f87171; }
+  }
+  textarea { width: 100%; min-height: 12rem; font-family: Consolas, monospace; }
+  button { font-size: 1rem; padding: .4rem 1rem; }
+</style>
+</head>
+<body>
+<h1>Jimothy Phase 0 — Tier 3 browser probe</h1>
+<p>This page tests whether a zero-install, browser-only Jimothy can run on
+this machine. It makes <strong>no network requests</strong> except one
+optional same-folder file read, and stores only a small test record in this
+browser's local storage. Reload the page once after the first run to complete
+the persistence check.</p>
+
+<table aria-describedby="summary">
+  <caption>Capability results</caption>
+  <thead><tr><th scope="col">Check</th><th scope="col">Result</th><th scope="col">Detail</th></tr></thead>
+  <tbody id="rows"></tbody>
+</table>
+
+<p id="summary" role="status" aria-live="polite">Running checks…</p>
+
+<h2>Send this back</h2>
+<p><button id="copy" type="button">Copy results to clipboard</button></p>
+<textarea id="out" readonly aria-label="Results text to copy"></textarea>
+
+<script>
+"use strict";
+const results = [];
+function row(name, ok, detail) {
+  results.push([name, ok ? "PASS" : "FAIL", detail || ""]);
+  const tr = document.createElement("tr");
+  tr.innerHTML = "<td>" + name + "</td><td class='" + (ok ? "pass" : "fail") +
+    "'>" + (ok ? "PASS" : "FAIL") + "</td><td></td>";
+  tr.lastElementChild.textContent = detail || "";
+  document.getElementById("rows").appendChild(tr);
+}
+
+async function run() {
+  row("page_context", true, location.protocol + " | " + navigator.userAgent.slice(0, 90));
+  row("secure_context", window.isSecureContext, "isSecureContext=" + window.isSecureContext);
+
+  // WebAssembly: instantiate a real module (an add function) from inline bytes.
+  try {
+    const wasm = new Uint8Array([
+      0x00,0x61,0x73,0x6d,0x01,0x00,0x00,0x00,
+      0x01,0x07,0x01,0x60,0x02,0x7f,0x7f,0x01,0x7f,
+      0x03,0x02,0x01,0x00,
+      0x07,0x07,0x01,0x03,0x61,0x64,0x64,0x00,0x00,
+      0x0a,0x09,0x01,0x07,0x00,0x20,0x00,0x20,0x01,0x6a,0x0b
+    ]);
+    const mod = await WebAssembly.instantiate(wasm);
+    const sum = mod.instance.exports.add(20, 22);
+    row("webassembly", sum === 42, "inline wasm add(20,22)=" + sum);
+  } catch (e) { row("webassembly", false, String(e).slice(0, 120)); }
+
+  // IndexedDB round-trip + persistence across reloads.
+  try {
+    const db = await new Promise((res, rej) => {
+      const rq = indexedDB.open("jimothy_spike", 1);
+      rq.onupgradeneeded = () => rq.result.createObjectStore("kv");
+      rq.onsuccess = () => res(rq.result);
+      rq.onerror = () => rej(rq.error);
+    });
+    const prev = await new Promise((res, rej) => {
+      const tx = db.transaction("kv", "readonly").objectStore("kv").get("stamp");
+      tx.onsuccess = () => res(tx.result); tx.onerror = () => rej(tx.error);
+    });
+    await new Promise((res, rej) => {
+      const tx = db.transaction("kv", "readwrite").objectStore("kv")
+        .put(new Date().toISOString(), "stamp");
+      tx.onsuccess = res; tx.onerror = () => rej(tx.error);
+    });
+    row("indexeddb", true, "write ok");
+    row("indexeddb_persistence", !!prev,
+        prev ? "found stamp from earlier run: " + prev
+             : "first run — reload the page to verify persistence");
+  } catch (e) {
+    row("indexeddb", false, String(e).slice(0, 120));
+    row("indexeddb_persistence", false, "skipped");
+  }
+
+  try {
+    localStorage.setItem("jimothy_spike", "ok");
+    row("localstorage", localStorage.getItem("jimothy_spike") === "ok", "");
+  } catch (e) { row("localstorage", false, String(e).slice(0, 120)); }
+
+  row("file_system_access_api", "showOpenFilePicker" in window,
+      "showOpenFilePicker " + ("showOpenFilePicker" in window ? "present" : "absent") +
+      " (absent is expected on file:// — export/import fallback covers it)");
+
+  try {
+    const w = new Worker(URL.createObjectURL(
+      new Blob(["postMessage(7*6)"], {type: "text/javascript"})));
+    const v = await new Promise((res, rej) => {
+      w.onmessage = e => res(e.data); w.onerror = e => rej(e.message || "worker error");
+      setTimeout(() => rej("timeout"), 3000);
+    });
+    w.terminate();
+    row("web_worker", v === 42, "blob worker returned " + v);
+  } catch (e) { row("web_worker", false, String(e).slice(0, 120)); }
+
+  // Can this page fetch a sibling file? (Usually blocked on file:// —
+  // determines whether assets must be inlined base64 in one HTML file.)
+  try {
+    const r = await fetch("tier3_probe.txt");
+    const t = (await r.text()).trim();
+    row("fetch_local_sibling", t === "jimothy-probe-ok", "read sibling file: " + t.slice(0, 40));
+  } catch (e) {
+    row("fetch_local_sibling", false,
+        "blocked (" + String(e).slice(0, 60) + ") — single-file build must inline all assets");
+  }
+
+  try {
+    const est = navigator.storage && await navigator.storage.estimate();
+    row("storage_quota", !!est, est ? "quota ≈ " +
+        Math.round((est.quota || 0) / 1048576) + " MB" : "estimate unavailable");
+  } catch (e) { row("storage_quota", false, String(e).slice(0, 120)); }
+
+  const fails = results.filter(r => r[1] === "FAIL" &&
+    !["fetch_local_sibling", "file_system_access_api", "indexeddb_persistence"].includes(r[0]));
+  const verdict = fails.length === 0
+    ? "TIER 3 VIABLE — core browser capabilities present"
+    : "TIER 3 DOUBTFUL — core failures: " + fails.map(r => r[0]).join(", ");
+  document.getElementById("summary").textContent = verdict;
+
+  const lines = ["=== JIMOTHY-TIER3-RESULT v1 ==="];
+  for (const [n, s, d] of results) lines.push(n.padEnd(24) + s.padEnd(5) + d);
+  lines.push("verdict: " + verdict, "=== END ===");
+  document.getElementById("out").value = lines.join("\n");
+}
+
+document.getElementById("copy").addEventListener("click", async () => {
+  const out = document.getElementById("out");
+  try { await navigator.clipboard.writeText(out.value); }
+  catch { out.select(); document.execCommand("copy"); }
+  document.getElementById("copy").textContent = "Copied ✓";
+});
+run();
+</script>
+</body>
+</html>

@@ -1,0 +1,40 @@
+{% extends "core/base.html" %}
+
+{% block title %}Quarter{% endblock %}
+{% block header %}This quarter{% endblock %}
+{% block subheader %}
+  <p class="sub">{{ q_start|date:"M j" }} – {{ q_end|date:"M j, Y" }} — portfolio roll-up</p>
+{% endblock %}
+
+{% block content %}
+  <section aria-labelledby="rollup-h">
+    <h2 id="rollup-h">Projects</h2>
+    {% if rows %}
+      {% for row in rows %}
+        <div class="card">
+          <div class="person-header">
+            <strong>{{ row.project.name }}</strong>
+            <span class="capacity">{{ row.project.get_priority_class_display }}{% if row.project.deadline %} — due {{ row.project.deadline|date:"M j, Y" }}{% endif %}</span>
+          </div>
+          {% if row.slip_days > 0 %}
+            <p class="warn-box">Tracking {{ row.slip_days }} day{{ row.slip_days|pluralize }} past deadline at the current pace.</p>
+          {% endif %}
+          {% if row.ev %}
+            <p>Burn: {{ row.ev.ac }} staff-days spent, {{ row.ev.ev }} earned, {{ row.ev.pv }} planned.
+              {{ row.ev_summary }}</p>
+          {% endif %}
+          {% if row.risks %}
+            <p><strong>Risks triggering this quarter:</strong></p>
+            <ul class="tasklist">
+              {% for r in row.risks %}
+                <li><span>{{ r.description }} ({{ r.owner|default:"unowned" }})</span><span class="hours">{{ r.trigger_date|date:"M j" }}</span></li>
+              {% endfor %}
+            </ul>
+          {% endif %}
+        </div>
+      {% endfor %}
+    {% else %}
+      <p class="empty">No active projects. Add some in <a href="/admin/">/admin/</a>.</p>
+    {% endif %}
+  </section>
+{% endblock %}

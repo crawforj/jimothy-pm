@@ -1,0 +1,91 @@
+{% extends "core/base.html" %}
+
+{% block title %}{{ project.name }} — Report{% endblock %}
+{% block header %}{{ project.name }}{% endblock %}
+{% block subheader %}
+  <p class="sub">Weekly status, generated {{ today|date:"M j, Y" }} — {{ project.get_status_display }}, {{ project.get_priority_class_display }}{% if project.deadline %}, due {{ project.deadline|date:"M j, Y" }}{% endif %}</p>
+{% endblock %}
+
+{% block content %}
+  {% if project.sponsor_notes %}
+    <section aria-labelledby="notes-h">
+      <h2 id="notes-h">Notes</h2>
+      <p>{{ project.sponsor_notes }}</p>
+    </section>
+  {% endif %}
+
+  <section aria-labelledby="ev-h">
+    <h2 id="ev-h">Budget &amp; earned value</h2>
+    {% if ev %}
+      <p>Planned {{ ev.pv }} staff-days, earned {{ ev.ev }}, actual spend {{ ev.ac }}.
+        {% if project.budget_staff_days %}Budget: {{ project.budget_staff_days }} staff-days.{% endif %}</p>
+      <p>{{ ev_summary }}</p>
+    {% else %}
+      <p class="empty">Not enough data to compute earned value yet.</p>
+    {% endif %}
+  </section>
+
+  <section aria-labelledby="forecast-h">
+    <h2 id="forecast-h">Completion forecast</h2>
+    {% if forecast %}
+      <p>Based on this project's own completed-work pace over the last 12
+        weeks: 50% chance of finishing the remaining work by
+        <strong>{{ forecast.p50|date:"M j, Y" }}</strong>, 85% chance by
+        <strong>{{ forecast.p85|date:"M j, Y" }}</strong>.</p>
+    {% else %}
+      <p class="empty">Not enough completed-task history yet for a
+        probabilistic forecast — needs at least 4 weeks of this project's
+        own throughput.</p>
+    {% endif %}
+  </section>
+
+  <section aria-labelledby="milestones-h">
+    <h2 id="milestones-h">Milestones</h2>
+    {% if milestones %}
+      <ul class="tasklist">
+        {% for m in milestones %}
+          <li><span>{{ m.name }}{% if m.done %} (done){% endif %}</span><span class="hours">{{ m.due_date|date:"M j, Y"|default:"no date" }}</span></li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="empty">No milestones defined.</p>
+    {% endif %}
+  </section>
+
+  {% if blockers %}
+  <section aria-labelledby="blockers-h">
+    <h2 id="blockers-h">Blocked / waiting on external</h2>
+    <div class="chase-box">
+      <ul>
+        {% for t in blockers %}
+          <li><strong>{{ t.title }}</strong>{% if t.status == "blocked" %} — blocked{% if t.blocked_by %} by {{ t.blocked_by }}{% endif %}{% else %} — waiting on external party{% endif %}</li>
+        {% endfor %}
+      </ul>
+    </div>
+  </section>
+  {% endif %}
+
+  {% if risks %}
+  <section aria-labelledby="risks-h">
+    <h2 id="risks-h">Open risks</h2>
+    <ul class="tasklist">
+      {% for r in risks %}
+        <li><span>{{ r.description }} (P{{ r.probability }}×I{{ r.impact }})</span><span class="hours">{{ r.trigger_date|date:"M j"|default:"no trigger date" }}</span></li>
+      {% endfor %}
+    </ul>
+  </section>
+  {% endif %}
+
+  <section aria-labelledby="recent-h">
+    <h2 id="recent-h">Recently completed</h2>
+    {% if recent_done %}
+      <ul class="tasklist">
+        {% for t in recent_done %}
+          <li><span>{{ t.title }}</span><span class="hours">{{ t.completed|date:"M j" }}</span></li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="empty">Nothing marked done with a completion date yet.</p>
+    {% endif %}
+  </section>
+{% endblock %}
