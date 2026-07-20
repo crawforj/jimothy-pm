@@ -34,11 +34,25 @@ report, a board-pending proposal, several completed tasks) loads
 automatically, with every date computed relative to today so it's never
 stale no matter when you install it.
 
+> **New to the command line?** Every gray code box below (like the one right
+> under Option A) is a set of commands, not something you paste into a
+> file or into the Docker Desktop app. They go into a **terminal**:
+> - **Windows:** click Start, type `PowerShell`, press Enter — a window
+>   with a blinking cursor opens. Type or paste a line, press Enter, wait
+>   for it to finish, then do the next line. (Right-click to paste; Ctrl+V
+>   doesn't always work in Windows terminals.)
+> - **macOS:** open **Terminal** from Spotlight (Cmd+Space, type
+>   "Terminal"). **Linux:** you already know where yours is.
+>
+> Leave that window open while Jimothy is running — closing it stops the
+> app. Option B's `setup.bat` skips all of this: just double-click the file.
+
 ### Option A — Docker (no Python install needed)
 
 If you have [Docker Desktop](https://www.docker.com/products/docker-desktop/)
 and nothing else, this is the least fiddly path — it never touches your
-system's Python at all:
+system's Python at all. Open a terminal (see above) and run these three
+lines, one at a time:
 
 ```bash
 git clone https://github.com/crawforj/jimothy-pm.git
@@ -46,9 +60,12 @@ cd jimothy-pm
 docker compose up
 ```
 
-Open <http://127.0.0.1:8000/>. `Ctrl+C` stops it; `docker compose up` again
-picks up right where you left off (your data persists in `db.sqlite3` next
-to the code).
+That third command will print a lot of scrolling text (it's downloading and
+building — normal) and settle once you see a line like "Watching for file
+changes." That's your signal it's ready. Now open
+<http://127.0.0.1:8000/> in your actual web browser. `Ctrl+C` back in the
+terminal stops it; running `docker compose up` again picks up right where
+you left off (your data persists in `db.sqlite3` next to the code).
 
 ### Option B — one-command setup script (Python, no manual venv/activate)
 
