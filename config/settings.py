@@ -11,16 +11,30 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 """
 
 import os
+import sys
 from pathlib import Path
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+# Where user-writable files (the database, a generated .env) live. Normally
+# the same as BASE_DIR -- but when frozen into a standalone .exe
+# (PyInstaller), BASE_DIR resolves inside a temp extraction folder that's
+# wiped on every launch, so writable data has to live next to the .exe
+# itself instead, or a user's portfolio would vanish every time they
+# reopened the app. sys.frozen is set by PyInstaller; every non-packaged
+# run (plain `manage.py`, Docker, the setup scripts) is unaffected.
+if getattr(sys, "frozen", False):
+    DATA_DIR = Path(sys.executable).resolve().parent
+else:
+    DATA_DIR = BASE_DIR
+
 # Minimal stdlib .env loader — no python-dotenv dependency, matching the
 # project's dependency-light rule. Reads KEY=VALUE lines from a .env file
-# next to manage.py if one exists (see .env.example); real environment
-# variables set another way always take precedence (setdefault).
-_env_file = BASE_DIR / ".env"
+# next to manage.py (or next to the .exe, when packaged) if one exists (see
+# .env.example); real environment variables set another way always take
+# precedence (setdefault).
+_env_file = DATA_DIR / ".env"
 if _env_file.exists():
     for _line in _env_file.read_text().splitlines():
         _line = _line.strip()
@@ -95,7 +109,7 @@ WSGI_APPLICATION = 'config.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'NAME': DATA_DIR / 'db.sqlite3',
     }
 }
 
