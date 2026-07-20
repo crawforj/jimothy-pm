@@ -59,6 +59,17 @@ showing Jimothy running. Requires a (free) GitHub account. This is the
 single easiest way to see whether Jimothy is for you before installing it
 for real with one of the options below.
 
+### Windows — download and run (no install at all)
+
+**[⬇ Download Jimothy.exe](https://github.com/crawforj/jimothy-pm/releases/latest/download/Jimothy.exe)**
+— one file, no Python, no Docker, no terminal. Double-click it. Windows
+will show an "Unknown publisher" warning the first time (this build isn't
+code-signed) — click **More info → Run anyway**. It sets itself up in the
+same folder you put it in and opens your browser automatically once it's
+ready. Your data (`db.sqlite3`, next to the .exe) stays there between
+launches — back it up by copying that one file. macOS/Linux packaged
+builds don't exist yet; use one of the other options below on those.
+
 ### Option A — Docker (no Python install needed)
 
 If you have [Docker Desktop](https://www.docker.com/products/docker-desktop/)

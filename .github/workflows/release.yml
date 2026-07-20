@@ -1,0 +1,47 @@
+name: Release
+
+# Builds the standalone Windows .exe and attaches it to a GitHub Release
+# whenever a version tag is pushed (e.g. v0.1.1). Blocked by the same
+# account-level Actions billing gate as ci.yml until that's resolved --
+# v0.1.0 was built and published manually in the meantime (see
+# desktop_app.py's commit and the release notes for how/what was verified).
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+jobs:
+  build-windows-exe:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install pyinstaller
+      - name: Build Jimothy.exe
+        shell: pwsh
+        run: |
+          $djangoPath = python -c "import django, os; print(os.path.dirname(django.__file__))"
+          pyinstaller --onefile --name Jimothy `
+            --add-data "core/templates;core/templates" `
+            --add-data "core/static;core/static" `
+            --add-data "$djangoPath\contrib\admin\templates;django\contrib\admin\templates" `
+            --add-data "$djangoPath\contrib\admin\static;django\contrib\admin\static" `
+            --add-data "$djangoPath\contrib\auth\templates;django\contrib\auth\templates" `
+            --hidden-import core.management.commands.seed_demo `
+            --hidden-import core.management.commands.migrate `
+            desktop_app.py
+      - name: Smoke test the build
+        shell: pwsh
+        run: |
+          $env:DJANGO_SECRET_KEY = "ci-build-smoke-test-only"
+          python manage.py check
+      - name: Attach to the release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/Jimothy.exe
