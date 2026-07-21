@@ -64,8 +64,8 @@ for real with one of the options below.
 One file, no Python, no Docker, no terminal (well — Linux needs one `chmod`).
 It sets itself up in the same folder you put it in, loads example data, and
 opens your browser automatically once it's ready. Your data (`db.sqlite3`,
-next to the binary) stays there between launches — back it up by copying
-that one file.
+next to the binary) stays there between launches, with an automatic daily
+backup — see "Keeping Jimothy running" below.
 
 - **Windows: [⬇ Download Jimothy.exe](https://github.com/crawforj/jimothy-pm/releases/latest/download/Jimothy.exe)**
   — double-click it. Windows will show an "Unknown publisher" warning the
@@ -82,6 +82,30 @@ that one file.
   that appears; after that first approval it launches normally. Built and
   run on GitHub's own macOS runners — treat this as newly verified rather
   than as battle-tested as the Windows/Linux builds.
+
+### Keeping Jimothy running
+
+- **Your data is safe.** `db.sqlite3` lives right next to the binary and is
+  untouched by re-launching, re-downloading, or upgrading to a newer release
+  — nothing is ever wiped except on a genuinely fresh install (no
+  `db.sqlite3` present yet). On top of that, every launch now takes an
+  automatic daily backup into a `backups/` folder next to the binary (kept
+  14 days, then the oldest ones are pruned automatically) — to restore one,
+  quit Jimothy, copy a `backups/jimothy-YYYY-MM-DD.sqlite3` back over
+  `db.sqlite3`, and relaunch.
+- **If it gets shut down** (closed the window, restarted your computer),
+  nothing is lost — just run the binary again the same way you did the
+  first time. It picks up exactly where you left off; there's no setup to
+  redo.
+- **To start it automatically every time you log in**, run the binary once
+  from a terminal with `--install-autostart` (e.g.
+  `Jimothy.exe --install-autostart`, or `./Jimothy-macos --install-autostart`)
+  — it registers a per-user login entry (Startup folder on Windows, a
+  LaunchAgent on macOS, an XDG autostart entry on Linux) and does nothing
+  else: no background service, no restart-on-crash, so closing the window
+  yourself always still stops it until next login. Undo with
+  `--uninstall-autostart`. If you later move the binary to a new folder,
+  uninstall first, move it, then install again from the new location.
 
 ### Option A — Docker (no Python install needed)
 

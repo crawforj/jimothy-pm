@@ -399,9 +399,15 @@ Beyond `seed_demo` (§2) and `closeout` (§6):
   machine); wiring `briefing` up to actually send is a small follow-up once
   that's answered.
 - **`python manage.py backup`** — copies `db.sqlite3` to
-  `backups/jimothy-YYYY-MM-DD.sqlite3` (gitignored). OneDrive already
-  versions the live database file, so this is for a clean point-in-time copy
-  before a risky change, not primary backup.
+  `backups/jimothy-YYYY-MM-DD.sqlite3` (gitignored), then prunes older
+  copies down to the most recent 14 (`--keep N` to change that, `--keep 0`
+  to keep everything). If you're running the packaged build
+  (`Jimothy.exe`/`Jimothy-macos`/`Jimothy-linux`), this already runs for you
+  automatically once a day — see the README's "Keeping Jimothy running"
+  section for the packaged-build specifics (auto-backup, `--install-autostart`).
+  Running it yourself in dev mode is for a clean point-in-time copy before a
+  risky change, on top of whatever sync tool (OneDrive, etc.) may already be
+  versioning the live file.
 
 ---
 
@@ -458,6 +464,15 @@ retroactively.
 Same reason as calibration on Today (§5) — needs at least 4 completed tasks
 with both an estimate and actual hours logged for a given person or tag
 before a factor is trustworthy enough to show.
+
+**I closed the window / restarted my computer — how do I get Jimothy back?**
+If you're running the packaged build, just run the binary again the same
+way you did the first time; your portfolio is untouched. To have it start
+automatically at every login instead of remembering to relaunch it, see the
+README's "Keeping Jimothy running" section (`--install-autostart`). If
+you're running `manage.py runserver` in dev mode, that's a plain terminal
+process — closing the terminal stops it, `python manage.py runserver`
+starts it again the same as always.
 
 **The Week board says I'm over-committed — is that a problem?**
 No — it's informational, not a hard stop. Whatever's still open when the
