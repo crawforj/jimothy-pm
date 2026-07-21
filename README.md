@@ -74,8 +74,14 @@ that one file.
   — `chmod +x Jimothy-linux && ./Jimothy-linux`. Built on Debian 12
   (bookworm) for broad compatibility; if your distro's glibc is
   significantly older than that, use Docker instead.
-- **macOS**: not built yet — no Mac hardware available to build or test one.
-  Use Docker, the setup scripts, or GitHub Codespaces below in the meantime.
+- **macOS: [⬇ Download Jimothy-macos](https://github.com/crawforj/jimothy-pm/releases/latest/download/Jimothy-macos)**
+  — `chmod +x Jimothy-macos && ./Jimothy-macos`. This build isn't signed or
+  notarized (no Apple Developer account), so Gatekeeper will refuse to open
+  it with a plain double-click or say it's "damaged" — right-click (or
+  Control-click) it, choose **Open**, then confirm **Open** in the dialog
+  that appears; after that first approval it launches normally. Built and
+  run on GitHub's own macOS runners — treat this as newly verified rather
+  than as battle-tested as the Windows/Linux builds.
 
 ### Option A — Docker (no Python install needed)
 

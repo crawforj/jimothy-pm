@@ -2,12 +2,12 @@ name: Release
 
 # Builds standalone executables (Windows, Linux, macOS) and attaches them
 # to a GitHub Release whenever a version tag is pushed (e.g. v0.1.1).
-# Blocked by the same account-level Actions billing gate as ci.yml until
-# that's resolved -- v0.1.0's Windows and Linux builds were built and
-# published manually in the meantime (see desktop_app.py's commit and the
-# release notes for how/what was verified on each). macOS is untested
-# entirely -- no Mac hardware was available to verify this job locally the
-# way the other two were; treat it as unverified until it's actually run.
+# v0.1.0's Windows and Linux builds were built and published manually
+# before the account-level Actions billing gate was resolved (see
+# desktop_app.py's commit and the release notes for how/what was verified
+# on each). build-macos-binary ran for the first time via GitHub's own
+# macos-latest runners for v0.1.1 -- build and smoke test passed, treat it
+# as newly verified rather than as battle-tested as the other two.
 
 on:
   push:
@@ -86,9 +86,6 @@ jobs:
           files: dist/Jimothy-linux
 
   build-macos-binary:
-    # UNVERIFIED -- no Mac hardware was available to test this job or the
-    # binary it produces. First real run of this job should be treated as
-    # a trial, not assumed correct just because CI is green.
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
