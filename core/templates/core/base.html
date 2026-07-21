@@ -132,6 +132,11 @@
   .range-tick.deadline.warn .range-tick-label { color: var(--color-warn); }
   .range-today-label { position: absolute; top: 18px; left: 0; font-size: .72rem;
                         color: color-mix(in srgb, var(--color-text) 70%, transparent); }
+  .heatmap-scroll { overflow-x: auto; }
+  .heat-cell { text-align: center; font-variant-numeric: tabular-nums;
+               background: color-mix(in srgb, var(--color-accent) var(--heat-mix), var(--color-surface));
+               white-space: nowrap; }
+  .heat-cell.over { background: color-mix(in srgb, var(--color-warn) var(--heat-mix), var(--color-surface)); }
   form.inline { display: inline; }
   button.link-btn { background: none; border: none; color: var(--color-accent); cursor: pointer;
                      padding: 0; font: inherit; text-decoration: underline;

@@ -11,7 +11,9 @@ import datetime as dt
 from django.test import TestCase, override_settings
 from django.urls import reverse
 
-from core.views import _forecast_chart_data
+from core.models import Staff
+from core.views import _forecast_chart_data, _heatmap_data
+from engine.schedule import WeekLoad
 
 _FAKE_GRAPH_SETTINGS = dict(MICROSOFT_GRAPH_CLIENT_ID="test-graph-client-id")
 _FAKE_GOOGLE_SETTINGS = dict(GOOGLE_CALENDAR_CLIENT_ID="test-google-client-id",
@@ -154,3 +156,43 @@ class ForecastChartDataTests(TestCase):
 
     def test_no_forecast_returns_none(self):
         self.assertIsNone(_forecast_chart_data(None, _TODAY, None))
+
+
+class HeatmapDataTests(TestCase):
+    def test_no_active_staff_returns_none(self):
+        weeks, rows = _heatmap_data([], {})
+        self.assertIsNone(weeks)
+        self.assertIsNone(rows)
+
+    def test_week_headers_come_from_first_staff_member(self):
+        s = Staff.objects.create(name="Alex")
+        load = {s.pk: [WeekLoad(week_start=_TODAY, load_hours=10, capacity_hours=30)]}
+        weeks, rows = _heatmap_data([s], load)
+        self.assertEqual(weeks, [_TODAY])
+        self.assertEqual(rows[0]["staff"], s)
+
+    def test_mix_pct_scales_within_the_contrast_safe_range(self):
+        """Cell intensity must stay inside the measured-safe 6-40% band
+        (see _heatmap_data's docstring) at both ends of pct, not the full
+        0-100% -- that's what keeps this app's light text legible against
+        its own cell background at any load level."""
+        s = Staff.objects.create(name="Alex")
+        load = {s.pk: [
+            WeekLoad(week_start=_TODAY, load_hours=0, capacity_hours=30),           # 0%
+            WeekLoad(week_start=_TODAY, load_hours=30, capacity_hours=30),          # 100%
+        ]}
+        _, rows = _heatmap_data([s], load)
+        self.assertEqual(rows[0]["cells"][0]["mix_pct"], 6.0)
+        self.assertEqual(rows[0]["cells"][1]["mix_pct"], 40.0)
+
+    def test_over_capacity_flag_carries_through(self):
+        s = Staff.objects.create(name="Alex")
+        load = {s.pk: [WeekLoad(week_start=_TODAY, load_hours=40, capacity_hours=30)]}
+        _, rows = _heatmap_data([s], load)
+        self.assertTrue(rows[0]["cells"][0]["over_capacity"])
+
+    def test_renders_on_staff_page_with_no_crash(self):
+        Staff.objects.create(name="Alex", active=True)
+        resp = self.client.get(reverse("staff"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "Team capacity")

@@ -7,6 +7,34 @@
 {% endblock %}
 
 {% block content %}
+  {% if heatmap_rows %}
+    <section aria-labelledby="heatmap-h">
+      <h2 id="heatmap-h">Team capacity, next {{ heatmap_weeks|length }} weeks</h2>
+      <p class="sub">Darker = fuller; amber means over capacity that week. Exact hours in each cell.</p>
+      <div class="heatmap-scroll">
+        <table>
+          <caption class="visually-hidden">Weekly load vs. capacity for every active staff member</caption>
+          <thead>
+            <tr>
+              <th scope="col">Staff</th>
+              {% for wk in heatmap_weeks %}<th scope="col">{{ wk|date:"M j" }}</th>{% endfor %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in heatmap_rows %}
+              <tr>
+                <th scope="row">{{ row.staff.name }}</th>
+                {% for cell in row.cells %}
+                  <td class="heat-cell{% if cell.over_capacity %} over{% endif %}" style="--heat-mix: {{ cell.mix_pct }}%;">{{ cell.load_hours|floatformat:0 }}h</td>
+                {% endfor %}
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  {% endif %}
+
   <section aria-labelledby="roster-h">
     <h2 id="roster-h">Roster</h2>
     {% if rows %}

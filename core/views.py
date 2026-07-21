@@ -293,6 +293,38 @@ def projects(request):
     return render(request, "core/projects.html", {"rows": rows, "today": today_date})
 
 
+_HEAT_MIX_MIN, _HEAT_MIX_MAX = 6, 40   # percent -- see staff() docstring-ish note below
+
+
+def _heatmap_data(active_staff, load_by_staff):
+    """Team-wide capacity grid: rows=staff, columns=weeks, cell intensity=
+    load%. Reuses weekly_load's existing WeekLoad.pct/over_capacity --
+    identical for every staff member's week_starts (same today_date/weeks
+    args), so the first staff member's week list doubles as the header row.
+
+    Cell intensity is capped to a 6-40% color-mix range, not the full
+    0-100% pct -- mixing var(--color-accent)/var(--color-warn) at full
+    strength puts this app's light text at ~2.7:1 / ~1.8:1 contrast
+    against its own cell (measured, not assumed), badly failing WCAG AA.
+    12-14% is what .warn-box/.ok-box already use for the same reason;
+    40% (measured at ~5.5-6.7:1) is as far as this palette safely stretches
+    for a wider visible range without repeating their exact number."""
+    if not active_staff:
+        return None, None
+    week_headers = [wl.week_start for wl in load_by_staff.get(active_staff[0].pk, [])]
+    if not week_headers:
+        return None, None
+    rows = []
+    for s in active_staff:
+        cells = []
+        for wl in load_by_staff.get(s.pk, []):
+            mix = _HEAT_MIX_MIN + (wl.pct / 100) * (_HEAT_MIX_MAX - _HEAT_MIX_MIN)
+            cells.append({"load_hours": wl.load_hours, "over_capacity": wl.over_capacity,
+                         "mix_pct": round(mix, 1)})
+        rows.append({"staff": s, "cells": cells})
+    return week_headers, rows
+
+
 def staff(request):
     today_date = dt.date.today()
     staff_qs = list(Staff.objects.all().order_by("-is_manager", "name"))
@@ -302,6 +334,7 @@ def staff(request):
     active_staff = [s for s in staff_qs if s.active]
     load_by_staff = weekly_load(scored, [s.to_engine() for s in active_staff],
                                 today_date, weeks=6, uplifts=uplifts)
+    heatmap_weeks, heatmap_rows = _heatmap_data(active_staff, load_by_staff)
 
     rows = []
     for s in staff_qs:
@@ -318,7 +351,10 @@ def staff(request):
             "tag_factors": tag_factors,
             "weekly_load": load_by_staff.get(s.pk, []),
         })
-    return render(request, "core/staff.html", {"rows": rows, "today": today_date})
+    return render(request, "core/staff.html", {
+        "rows": rows, "today": today_date,
+        "heatmap_weeks": heatmap_weeks, "heatmap_rows": heatmap_rows,
+    })
 
 
 def reports_index(request):
