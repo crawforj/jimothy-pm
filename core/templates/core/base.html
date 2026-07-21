@@ -98,6 +98,22 @@
   .bar-fill { background: var(--color-accent); border-radius: var(--radius-sm); height: 10px;
               min-width: 2px; display: block; }
   .bar-fill.over { background: var(--color-warn); }
+  .chart-figure { margin: .8rem 0 1.2rem; }
+  .chart-figure svg { display: block; width: 100%; height: auto; max-width: 640px; }
+  .chart-legend { display: flex; gap: 1.2rem; margin-bottom: .4rem; font-size: .85rem;
+                  color: color-mix(in srgb, var(--color-text) 75%, transparent); }
+  .chart-legend .swatch { display: inline-block; width: 1.4rem; height: 0; margin-right: .35rem;
+                           border-top: 2px solid var(--color-accent); vertical-align: middle; }
+  .chart-legend .swatch.ideal { border-top-style: dashed;
+                                 border-top-color: color-mix(in srgb, var(--color-text) 45%, transparent); }
+  .chart-figure figcaption { font-size: .85rem; margin-top: .3rem;
+                              color: color-mix(in srgb, var(--color-text) 60%, transparent); }
+  .burndown-baseline { stroke: var(--color-divider); stroke-width: 1; }
+  .burndown-line { stroke: var(--color-accent); stroke-width: 2; fill: none;
+                    stroke-linecap: round; stroke-linejoin: round; }
+  .burndown-ideal { stroke: color-mix(in srgb, var(--color-text) 45%, transparent);
+                     stroke-width: 2; stroke-dasharray: 5 4; fill: none; }
+  .burndown-dot { fill: var(--color-accent); }
   form.inline { display: inline; }
   button.link-btn { background: none; border: none; color: var(--color-accent); cursor: pointer;
                      padding: 0; font: inherit; text-decoration: underline;

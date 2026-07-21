@@ -174,3 +174,29 @@ def project_monte_carlo(project: Project, today_date: dt.date):
     # named keys, not the engine's raw {50: date, 85: date} — Django templates
     # can't do dict[int] lookup via dotted access
     return {"p50": percentiles[50], "p85": percentiles[85]}
+
+
+def project_burndown(project: Project, today_date: dt.date, weeks: int = 12):
+    """Remaining-work history for the Reports page's burndown chart.
+    Reconstructed from today's snapshot plus project_weekly_throughput's
+    existing weekly-completed-hours history (engine.ev.burndown_series),
+    not by replaying historical task/WorkLog state. None only if the
+    project has no tasks at all -- unlike Monte Carlo, no minimum-history
+    floor, since even an early project with all-zero throughput still has
+    a legitimate (flat) line to show."""
+    from engine.ev import burndown_series
+
+    tasks = list(Task.objects.filter(project=project))
+    if not tasks:
+        return None
+    open_tasks = [t.to_engine() for t in tasks if t.status != "done"]
+    uplifts = build_uplifts(open_tasks)
+    remaining_now_hours = sum(t.remaining_hours(uplifts.get(t.id, 1.0)) for t in open_tasks)
+    history = project_weekly_throughput(project, today_date, weeks=weeks)
+    week_starts = [week_start(today_date) - dt.timedelta(weeks=i) for i in range(weeks, 0, -1)]
+    try:
+        return burndown_series(remaining_now_hours, history, week_starts,
+                               today_date, project.deadline)
+    except Exception:
+        logger.exception("Jimothy burndown calc failed for project %s", project.pk)
+        return None

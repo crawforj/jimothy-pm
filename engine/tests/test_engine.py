@@ -7,7 +7,7 @@ from engine.calendar_capacity import BusyBlock, BusyStatus, day_capacity
 from engine.dateparse import parse_natural_date
 from engine.estimate import (HistoryRecord, calibration_factors, pert_expected,
                              pert_stddev, template_estimate, uplift_for)
-from engine.ev import project_ev
+from engine.ev import HOURS_PER_STAFF_DAY, burndown_series, project_ev
 from engine.model import DelayProfile, PriorityClass, Project, Staff, Status, Task
 from engine.montecarlo import completion_percentiles, probability_by
 from engine.schedule import (BATCH_SCORE_TOLERANCE, SWITCH_PENALTY, CycleError,
@@ -381,6 +381,81 @@ class TestEV(unittest.TestCase):
         t = task(1, est_likely=8)  # no own deadline -> inherits project's
         m = project_ev([t], project, TODAY)
         self.assertEqual(m.pv, 1.0)
+
+
+class TestBurndown(unittest.TestCase):
+    def _weeks(self, n):
+        return [TODAY - dt.timedelta(weeks=i) for i in range(n, 0, -1)]
+
+    def test_steady_decline_from_known_throughput(self):
+        # 3 weeks of 8h (1 staff-day) each completed, 2 staff-days left today
+        # -> reconstructing backward should show 5, 4, 3 staff-days at each
+        # week's start, ending at today's real 2.
+        weeks = self._weeks(3)
+        series = burndown_series(
+            remaining_now_hours=2 * HOURS_PER_STAFF_DAY,
+            weekly_throughput_hours=[8.0, 8.0, 8.0],
+            week_starts=weeks, today=TODAY, deadline=None)
+        self.assertEqual([p.remaining for p in series], [5.0, 4.0, 3.0, 2.0])
+        self.assertEqual([p.date for p in series], weeks + [TODAY])
+
+    def test_all_zero_week_produces_no_change(self):
+        weeks = self._weeks(2)
+        series = burndown_series(
+            remaining_now_hours=4 * HOURS_PER_STAFF_DAY,
+            weekly_throughput_hours=[0.0, 0.0],
+            week_starts=weeks, today=TODAY, deadline=None)
+        self.assertEqual([p.remaining for p in series], [4.0, 4.0, 4.0])
+
+    def test_final_point_is_todays_actual_value_not_last_full_week(self):
+        # Throughput lists only cover *full* weeks (project_weekly_throughput's
+        # own convention) -- today's own in-progress-week completions should
+        # still show up as the final point, not get silently dropped.
+        weeks = self._weeks(1)
+        series = burndown_series(
+            remaining_now_hours=1 * HOURS_PER_STAFF_DAY,
+            weekly_throughput_hours=[8.0],
+            week_starts=weeks, today=TODAY, deadline=None)
+        self.assertEqual(series[-1].date, TODAY)
+        self.assertEqual(series[-1].remaining, 1.0)
+
+    def test_no_deadline_leaves_ideal_none_throughout(self):
+        series = burndown_series(
+            remaining_now_hours=8.0, weekly_throughput_hours=[0.0],
+            week_starts=self._weeks(1), today=TODAY, deadline=None)
+        self.assertTrue(all(p.ideal is None for p in series))
+
+    def test_ideal_line_endpoints(self):
+        # Zero throughput -> remaining stays flat at 10 staff-days
+        # throughout, isolating the ideal-line math. Deadline is exactly 70
+        # days after the series' start, with a point at the start, one at
+        # the halfway mark (35 days), and today landing exactly on the
+        # deadline itself (70 days) -> ideal should read 10, 5, then 0.
+        start = TODAY - dt.timedelta(days=70)
+        halfway = start + dt.timedelta(days=35)
+        deadline = start + dt.timedelta(days=70)
+        series = burndown_series(
+            remaining_now_hours=10 * HOURS_PER_STAFF_DAY,
+            weekly_throughput_hours=[0.0, 0.0],
+            week_starts=[start, halfway], today=deadline, deadline=deadline)
+        self.assertEqual([p.ideal for p in series], [10.0, 5.0, 0.0])
+
+    def test_deadline_already_passed_floors_ideal_at_zero(self):
+        weeks = self._weeks(1)
+        series = burndown_series(
+            remaining_now_hours=8.0, weekly_throughput_hours=[0.0],
+            week_starts=weeks, today=TODAY,
+            deadline=weeks[0] - dt.timedelta(days=1))
+        self.assertTrue(all(p.ideal == 0.0 for p in series))
+
+    def test_remaining_never_negative(self):
+        # Throughput history overstates what's left today can only mean
+        # scope was completed faster than tracked -- still must not report
+        # a nonsensical negative remaining figure.
+        series = burndown_series(
+            remaining_now_hours=0.0, weekly_throughput_hours=[8.0],
+            week_starts=self._weeks(1), today=TODAY, deadline=None)
+        self.assertTrue(all(p.remaining >= 0.0 for p in series))
 
 
 class TestSprint(unittest.TestCase):

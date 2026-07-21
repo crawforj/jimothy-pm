@@ -13,8 +13,8 @@ from core.calendarsync.graph_provider import GraphCalendarProvider
 from core.calendarsync.google_provider import GoogleCalendarProvider
 from core.models import CalendarEvent, Milestone, Project, RiskItem, ScoringSettings, Staff, Task, WorkLog
 from core.services import (build_uplifts, calibration_history, get_or_create_sprint,
-                           portfolio_feasibility, portfolio_scoring, project_ev_metrics,
-                           project_monte_carlo, staff_day_capacity)
+                           portfolio_feasibility, portfolio_scoring, project_burndown,
+                           project_ev_metrics, project_monte_carlo, staff_day_capacity)
 from engine.estimate import calibration_factors
 from engine.schedule import compute_criticality, pack_day, weekly_load
 from engine.sprint import committed_capacity, compute_velocity, week_start
@@ -327,6 +327,55 @@ def reports_index(request):
     return render(request, "core/reports_index.html", {"projects": projects_qs})
 
 
+_CHART_WIDTH = 640
+_CHART_HEIGHT = 200
+_CHART_PAD = {"left": 34, "right": 10, "top": 10, "bottom": 24}
+
+
+def _burndown_chart_data(burndown):
+    """SVG coordinates for the burndown chart, computed here (not in a
+    template, which can't do this arithmetic, and not in services.py,
+    which is query->engine glue, not presentation) so
+    report_detail.html only has to place already-scaled points -- matching
+    "no client-side JS" (Jimothy has none, by design): every other page
+    renders fully server-side too."""
+    if not burndown:
+        return None
+    plot_w = _CHART_WIDTH - _CHART_PAD["left"] - _CHART_PAD["right"]
+    plot_h = _CHART_HEIGHT - _CHART_PAD["top"] - _CHART_PAD["bottom"]
+    n = len(burndown)
+    values = [p.remaining for p in burndown] + [p.ideal for p in burndown if p.ideal is not None]
+    max_value = max(values) if values else 0.0
+    max_value = max(max_value, 1.0)   # avoid a divide-by-zero on an all-zero project
+
+    def _xy(index: int, value: float) -> tuple[float, float]:
+        x = _CHART_PAD["left"] + (plot_w if n == 1 else plot_w * index / (n - 1))
+        y = _CHART_PAD["top"] + plot_h * (1 - value / max_value)
+        return round(x, 1), round(y, 1)
+
+    actual_points = []
+    ideal_points = []
+    for i, p in enumerate(burndown):
+        x, y = _xy(i, p.remaining)
+        actual_points.append({"x": x, "y": y, "label": "%s: %.1f staff-days remaining" % (p.date, p.remaining)})
+        if p.ideal is not None:
+            ix, iy = _xy(i, p.ideal)
+            ideal_points.append("%s,%s" % (ix, iy))
+
+    baseline_y = _CHART_PAD["top"] + plot_h
+    return {
+        "width": _CHART_WIDTH, "height": _CHART_HEIGHT,
+        "baseline_y": baseline_y,
+        "left": _CHART_PAD["left"], "right": _CHART_WIDTH - _CHART_PAD["right"],
+        "max_value": round(max_value, 1),
+        "top_y": _CHART_PAD["top"],
+        "actual_points": actual_points,
+        "actual_polyline": " ".join("%s,%s" % (p["x"], p["y"]) for p in actual_points),
+        "ideal_polyline": " ".join(ideal_points) if ideal_points else None,
+        "first_date": burndown[0].date, "last_date": burndown[-1].date,
+    }
+
+
 def report_detail(request, project_id):
     project = get_object_or_404(Project, pk=project_id)
     today_date = dt.date.today()
@@ -339,13 +388,15 @@ def report_detail(request, project_id):
         (t for t in tasks if t.status == "done" and t.completed),
         key=lambda t: t.completed, reverse=True)[:10]
     forecast = project_monte_carlo(project, today_date)
+    burndown = project_burndown(project, today_date)
 
     context = {
         "project": project, "ev": ev,
         "ev_summary": phrases.ev_summary(ev.spi, ev.cpi) if ev else None,
         "milestones": milestones, "risks": risks,
         "blockers": blockers, "recent_done": recent_done,
-        "forecast": forecast,
+        "forecast": forecast, "burndown": burndown,
+        "burndown_chart": _burndown_chart_data(burndown) if burndown else None,
         "today": today_date,
     }
     return render(request, "core/report_detail.html", context)

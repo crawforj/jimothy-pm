@@ -23,6 +23,39 @@
     {% else %}
       <p class="empty">Not enough data to compute earned value yet.</p>
     {% endif %}
+
+    {% if burndown_chart %}
+      <div class="chart-legend">
+        <span><span class="swatch"></span>Actual remaining</span>
+        {% if burndown_chart.ideal_polyline %}<span><span class="swatch ideal"></span>Ideal pace</span>{% endif %}
+      </div>
+      <figure class="chart-figure">
+        <svg viewBox="0 0 {{ burndown_chart.width }} {{ burndown_chart.height }}" role="img" aria-labelledby="burndown-caption">
+          <line class="burndown-baseline" x1="{{ burndown_chart.left }}" y1="{{ burndown_chart.baseline_y }}"
+                x2="{{ burndown_chart.right }}" y2="{{ burndown_chart.baseline_y }}" />
+          {% if burndown_chart.ideal_polyline %}
+            <polyline class="burndown-ideal" points="{{ burndown_chart.ideal_polyline }}" />
+          {% endif %}
+          <polyline class="burndown-line" points="{{ burndown_chart.actual_polyline }}" />
+          {% for pt in burndown_chart.actual_points %}
+            <circle class="burndown-dot" cx="{{ pt.x }}" cy="{{ pt.y }}" r="4"><title>{{ pt.label }}</title></circle>
+          {% endfor %}
+        </svg>
+        <figcaption id="burndown-caption">Remaining work, {{ burndown_chart.first_date|date:"M j" }}–{{ burndown_chart.last_date|date:"M j" }} (max {{ burndown_chart.max_value }} staff-days on this axis).</figcaption>
+      </figure>
+
+      <table>
+        <caption class="visually-hidden">Weekly remaining work for {{ project.name }}, same data as the chart above</caption>
+        <thead>
+          <tr><th scope="col">Week of</th><th scope="col">Remaining (staff-days)</th>{% if burndown_chart.ideal_polyline %}<th scope="col">Ideal pace</th>{% endif %}</tr>
+        </thead>
+        <tbody>
+          {% for p in burndown %}
+            <tr><td>{{ p.date|date:"M j, Y" }}</td><td>{{ p.remaining }}</td>{% if burndown_chart.ideal_polyline %}<td>{{ p.ideal }}</td>{% endif %}</tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% endif %}
   </section>
 
   <section aria-labelledby="forecast-h">
