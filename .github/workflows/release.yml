@@ -14,6 +14,14 @@ on:
     tags: ["v*"]
   workflow_dispatch:
 
+# The repo's default GITHUB_TOKEN permissions are read-only (repo-wide
+# setting), so softprops/action-gh-release needs this granted explicitly
+# per-workflow or every "Attach to the release" step fails with
+# "Resource not accessible by integration" -- confirmed the hard way on
+# the v0.1.1 run before this was added.
+permissions:
+  contents: write
+
 jobs:
   build-windows-exe:
     runs-on: windows-latest
