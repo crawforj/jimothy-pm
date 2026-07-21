@@ -15,6 +15,33 @@ import urllib.request
 import webbrowser
 from pathlib import Path
 
+if sys.platform == "win32":
+    # Windows consoles default to "QuickEdit Mode": a single accidental
+    # click inside the window pauses the ENTIRE process (all threads,
+    # including the one about to open the browser) until the user presses
+    # Enter/Esc to release the text-selection state it started. From the
+    # outside this looks exactly like "the window opened blank and nothing
+    # happens until I press Enter" -- a real, well-documented Windows
+    # console behavior, not a bug in what's printed or how it's flushed.
+    # Disabling it here is the standard fix (must OR in
+    # ENABLE_EXTENDED_FLAGS when clearing ENABLE_QUICK_EDIT_MODE, or the
+    # mode change is silently ignored). Best-effort: if this ever fails
+    # (e.g. no real console attached), the app should still run normally.
+    try:
+        import ctypes
+
+        STD_INPUT_HANDLE = -10
+        ENABLE_EXTENDED_FLAGS = 0x0080
+        ENABLE_QUICK_EDIT_MODE = 0x0040
+        kernel32 = ctypes.windll.kernel32
+        handle = kernel32.GetStdHandle(STD_INPUT_HANDLE)
+        mode = ctypes.c_uint32()
+        if kernel32.GetConsoleMode(handle, ctypes.byref(mode)):
+            new_mode = (mode.value & ~ENABLE_QUICK_EDIT_MODE) | ENABLE_EXTENDED_FLAGS
+            kernel32.SetConsoleMode(handle, new_mode)
+    except Exception:
+        pass
+
 # Handle --install-autostart / --uninstall-autostart before anything else --
 # neither needs Django, and this way they stay instant (no migrate, no .env
 # generation) rather than a side effect of the normal startup path.
