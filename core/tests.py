@@ -11,6 +11,7 @@ import datetime as dt
 from django.test import TestCase, override_settings
 from django.urls import reverse
 
+from core.context_processors import mascot_mood
 from core.models import Project, Staff, Task
 from core.views import _forecast_chart_data, _heatmap_data
 from engine.schedule import WeekLoad
@@ -231,3 +232,34 @@ class WeekMoveStatusTests(TestCase):
     def test_nonexistent_task_404s(self):
         resp = self.client.post(reverse("week_move", args=[999999]), {"status": "doing"})
         self.assertEqual(resp.status_code, 404)
+
+
+class MascotMoodTests(TestCase):
+    """The mascot's mood is a decorative echo of the same feasibility
+    signal Today's own accessible "Worth a look" warnings already carry
+    in full -- these tests only check the context processor's own
+    branches, not the image swap (that's a template detail already
+    exercised implicitly by every other test in this file rendering a
+    page)."""
+
+    def test_empty_portfolio_is_neutral(self):
+        self.assertEqual(mascot_mood(None)["mascot_mood"], "neutral")
+
+    def test_on_track_project_is_ok(self):
+        Staff.objects.create(name="Alex", active=True)
+        Project.objects.create(name="p", deadline=dt.date.today() + dt.timedelta(days=365))
+        self.assertEqual(mascot_mood(None)["mascot_mood"], "ok")
+
+    def test_slipping_project_is_warn(self):
+        staff = Staff.objects.create(name="Alex", active=True)
+        project = Project.objects.create(name="p", deadline=dt.date.today() + dt.timedelta(days=1))
+        Task.objects.create(project=project, title="huge task", status="todo",
+                            assignee=staff, est_likely=200,
+                            deadline=dt.date.today() + dt.timedelta(days=1))
+        self.assertEqual(mascot_mood(None)["mascot_mood"], "warn")
+
+    def test_renders_correct_image_on_today_page(self):
+        Staff.objects.create(name="Alex", active=True)
+        Project.objects.create(name="p", deadline=dt.date.today() + dt.timedelta(days=365))
+        resp = self.client.get(reverse("today"))
+        self.assertContains(resp, "jimothy-ok.svg")

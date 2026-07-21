@@ -180,7 +180,11 @@
 <body>
 <a class="skip-link" href="#main">Skip to main content</a>
 <header>
-  <img src="/static/core/jimothy.svg" alt="">
+  {# Mood is a decorative echo of the same feasibility signal Today's own
+     "Worth a look" warnings already show in full, accessible text --
+     alt stays empty on purpose, the mascot is never the sole conveyance
+     of that information. #}
+  <img src="/static/core/jimothy{% if mascot_mood == 'ok' %}-ok{% elif mascot_mood == 'warn' %}-warn{% endif %}.svg" alt="">
   <div>
     <h1>{% block header %}Jimothy{% endblock %}</h1>
     {% block subheader %}{% endblock %}
