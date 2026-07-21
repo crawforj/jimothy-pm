@@ -23,9 +23,19 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # wiped on every launch, so writable data has to live next to the .exe
 # itself instead, or a user's portfolio would vanish every time they
 # reopened the app. sys.frozen is set by PyInstaller; every non-packaged
-# run (plain `manage.py`, Docker, the setup scripts) is unaffected.
+# run (plain `manage.py`, the setup scripts) is unaffected.
+#
+# JIMOTHY_DATA_DIR is Docker's equivalent of the same problem: the
+# zero-clone `docker run` path (see README) has no local checkout to
+# bind-mount, so it points this at a named volume instead
+# (docker-entrypoint.sh sets it to /data). Unset by default, so the
+# existing docker-compose.yml (which bind-mounts the whole repo at /app)
+# keeps working exactly as before -- this is additive, not a behavior
+# change for anyone already using it.
 if getattr(sys, "frozen", False):
     DATA_DIR = Path(sys.executable).resolve().parent
+elif os.environ.get("JIMOTHY_DATA_DIR"):
+    DATA_DIR = Path(os.environ["JIMOTHY_DATA_DIR"])
 else:
     DATA_DIR = BASE_DIR
 

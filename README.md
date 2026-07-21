@@ -34,9 +34,9 @@ report, a board-pending proposal, several completed tasks) loads
 automatically, with every date computed relative to today so it's never
 stale no matter when you install it.
 
-> **New to the command line?** Every gray code box below (like the one right
-> under Option A) is a set of commands, not something you paste into a
-> file or into the Docker Desktop app. They go into a **terminal**:
+> **New to the command line?** Every gray code box below (like the one
+> right under "Run with Docker") is a set of commands, not something you
+> paste into a file or into the Docker Desktop app. They go into a **terminal**:
 > - **Windows:** click Start, type `PowerShell`, press Enter — a window
 >   with a blinking cursor opens. Type or paste a line, press Enter, wait
 >   for it to finish, then do the next line. (Right-click to paste; Ctrl+V
@@ -58,6 +58,35 @@ up your codespace," a browser preview pops up automatically already
 showing Jimothy running. Requires a (free) GitHub account. This is the
 single easiest way to see whether Jimothy is for you before installing it
 for real with one of the options below.
+
+### Run with Docker (recommended — no download, no clone, no security warnings)
+
+If you have [Docker Desktop](https://www.docker.com/products/docker-desktop/)
+and nothing else, this is one command — no `git clone`, no Python, and
+none of the "Unknown publisher"/Gatekeeper warnings the downloadable
+builds below show on first run, since nothing is being executed directly
+on your machine:
+
+```bash
+docker run -p 8000:8000 -v jimothy-data:/data -e JIMOTHY_DATA_DIR=/data --name jimothy ghcr.io/crawforj/jimothy-pm:latest
+```
+
+Paste that into a terminal (see the box above if you're new to this).
+The first run downloads the image (a minute or so, normal); once you see
+"Watching for file changes," open <http://127.0.0.1:8000/> in your
+browser. Leave that window open while Jimothy is running — closing it
+stops the container, same as every other option here.
+
+Your data lives in the `jimothy-data` Docker volume, not in any folder on
+disk you have to manage — safe across restarts and upgrades. To pause
+and resume: `docker stop jimothy` / `docker start jimothy`. To upgrade to
+a newer release: `docker pull ghcr.io/crawforj/jimothy-pm:latest &&
+docker rm -f jimothy`, then run the same command above again — your data
+in the volume is untouched, only the container is recreated. Want it to
+keep running in the background instead of holding a terminal window
+open? Add `-d` right after `docker run`.
+
+Want to see or modify the source instead? That's Option A, further down.
 
 ### Download and run (no install at all)
 
@@ -107,12 +136,12 @@ backup — see "Keeping Jimothy running" below.
   `--uninstall-autostart`. If you later move the binary to a new folder,
   uninstall first, move it, then install again from the new location.
 
-### Option A — Docker (no Python install needed)
+### Option A — Docker, building from source
 
-If you have [Docker Desktop](https://www.docker.com/products/docker-desktop/)
-and nothing else, this is the least fiddly path — it never touches your
-system's Python at all. Open a terminal (see above) and run these three
-lines, one at a time:
+Same idea as "Run with Docker" above, but this builds the image from a
+real local checkout instead of pulling the prebuilt one — the path to
+reach for if you want to see or modify the code, not just run it. Open a
+terminal (see above) and run these three lines, one at a time:
 
 ```bash
 git clone https://github.com/crawforj/jimothy-pm.git
@@ -125,7 +154,8 @@ building — normal) and settle once you see a line like "Watching for file
 changes." That's your signal it's ready. Now open
 <http://127.0.0.1:8000/> in your actual web browser. `Ctrl+C` back in the
 terminal stops it; running `docker compose up` again picks up right where
-you left off (your data persists in `db.sqlite3` next to the code).
+you left off (your data persists in `db.sqlite3` next to the code, since
+this path bind-mounts your checkout rather than using a named volume).
 
 ### Option B — one-command setup script (Python, no manual venv/activate)
 
@@ -174,8 +204,10 @@ Requires Python 3.12+. Open <http://127.0.0.1:8000/>.
   to PATH" (Windows) — or try `python3` instead of `python` (macOS/Linux,
   where `python` alone sometimes isn't aliased).
 - **"That port is already in use"** — something else is already using
-  8000. Run on a different port: `python manage.py runserver 8001` (or,
-  for Docker, edit the `"8000:8000"` line in `docker-compose.yml`).
+  8000. Run on a different port: `python manage.py runserver 8001`; for
+  "Run with Docker," change `-p 8000:8000` to e.g. `-p 8001:8000` (open
+  <http://127.0.0.1:8001/> instead); for Option A's `docker compose up`,
+  edit the `"8000:8000"` line in `docker-compose.yml`.
 - **"No module named django"** — your virtual environment isn't active, or
   dependencies aren't installed. Re-run the setup script, or manually
   `pip install -r requirements.txt` with the `.venv` active.
