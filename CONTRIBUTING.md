@@ -27,12 +27,18 @@ Requires Python 3.12+.
 
 ```bash
 python -m unittest discover engine         # the scoring/scheduling engine's own test suite
+python manage.py test core                 # core/tests.py -- Django-layer view/response tests
 python manage.py check                     # Django system checks
 python manage.py makemigrations --check --dry-run   # no missing migrations
 ```
 
 If you touched a template, also `runserver` and click through the affected
-page(s) — there's no browser test suite, so this is the verification step.
+page(s) — there's no *browser* test suite (Selenium-style), so this is the
+verification step for anything visual. `core/tests.py` covers response
+codes, redirects, and rendered content via Django's test client, without a
+real browser — see its calendar-sync tests for the pattern (including how
+to exercise a view's "not configured"/error paths with
+`django.test.override_settings` instead of a real external account).
 
 ## How the codebase is organized
 
