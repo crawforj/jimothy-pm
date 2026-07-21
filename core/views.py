@@ -628,6 +628,27 @@ def settings_view(request):
     })
 
 
+def download_backup(request):
+    # A browser-only way to get your data out -- the `backup` management
+    # command already does this from a terminal, but that's no help on
+    # Codespaces or anywhere else the target user is avoiding a terminal
+    # entirely. Buffered in memory rather than via a temp file: this file
+    # is a single person's SQLite db, never large enough to matter, and it
+    # avoids leaving temp files behind for someone else to clean up.
+    import io
+    import shutil
+
+    from django.conf import settings as django_settings
+    from django.http import FileResponse
+
+    buf = io.BytesIO()
+    with open(django_settings.DATABASES["default"]["NAME"], "rb") as f:
+        shutil.copyfileobj(f, buf)
+    buf.seek(0)
+    filename = "jimothy-%s.sqlite3" % dt.date.today().isoformat()
+    return FileResponse(buf, as_attachment=True, filename=filename)
+
+
 def calendar_connect_graph(request):
     return _calendar_connect_start(request, GraphCalendarProvider())
 

@@ -52,6 +52,17 @@
     </form>
   </section>
 
+  <section aria-labelledby="data-h">
+    <h2 id="data-h">Your data</h2>
+    <p class="sub">
+      Everything you've entered lives in one file. Download a copy any
+      time — this is especially worth doing if you're running Jimothy
+      somewhere temporary, like GitHub Codespaces, since it's the only way
+      to keep a copy that outlives the container.
+    </p>
+    <p><a href="{% url 'download_backup' %}">Download a backup of your data</a></p>
+  </section>
+
   <section aria-labelledby="calendar-h">
     <h2 id="calendar-h">Calendar sync (read-only)</h2>
     <p class="sub">

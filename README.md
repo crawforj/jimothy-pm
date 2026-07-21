@@ -35,8 +35,10 @@ automatically, with every date computed relative to today so it's never
 stale no matter when you install it.
 
 > **New to the command line?** Every gray code box below (like the one
-> right under "Run with Docker") is a set of commands, not something you
-> paste into a file or into the Docker Desktop app. They go into a **terminal**:
+> under "Run with Docker" or "Option A") is a set of commands, not
+> something you paste into a file or into the Docker Desktop app. They go
+> into a **terminal**:
+>
 > - **Windows:** click Start, type `PowerShell`, press Enter — a window
 >   with a blinking cursor opens. Type or paste a line, press Enter, wait
 >   for it to finish, then do the next line. (Right-click to paste; Ctrl+V
@@ -46,20 +48,45 @@ stale no matter when you install it.
 >
 > Leave that window open while Jimothy is running — closing it stops the
 > app. Option B's `setup.bat` skips all of this: just double-click the file.
+>
+> If a terminal isn't something you want to deal with at all, skip straight
+> to "Run it in your browser" below — no terminal, no download, nothing to
+> click through except one button.
 
-### Try it instantly — no install at all (recommended if you just want to look)
+### Run it in your browser (recommended — no download, no terminal, no `.exe`)
 
 [![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/crawforj/jimothy-pm)
 
-Click that button. GitHub builds and runs Jimothy in a temporary cloud
-environment — nothing touches your computer, no terminal, no Docker, no
-Python install, not even a `git clone`. After a minute or two of "Setting
-up your codespace," a browser preview pops up automatically already
-showing Jimothy running. Requires a (free) GitHub account. This is the
-single easiest way to see whether Jimothy is for you before installing it
-for real with one of the options below.
+Click that button once. GitHub builds Jimothy for you in a small private
+cloud computer of your own and opens it in a browser tab — nothing is
+installed on your actual computer, no terminal, no Docker, no Python, not
+even a `git clone`. After a minute or two of "Setting up your codespace,"
+Jimothy just appears, already running, with example data loaded. Requires
+a free GitHub account (email + password, nothing else). This is a
+genuinely real way to *use* Jimothy day to day, not just a demo:
 
-### Run with Docker (recommended — no download, no clone, no security warnings)
+- **Coming back later:** don't click the badge again — that spins up a
+  *second*, separate, empty one. Instead go to
+  [github.com/codespaces](https://github.com/codespaces), and click the
+  `jimothy-pm` one already in your list. Everything is exactly how you
+  left it.
+- **It pauses itself.** GitHub stops your codespace automatically after
+  it's been idle a while, and deletes it if it's gone untouched for about
+  30 days straight — same page above brings it back (or recreates it, if
+  it's actually been deleted) either way. If you use Jimothy at least
+  once a month you'll never notice this.
+- **It has a generous, genuinely free tier** for exactly this kind of
+  light, personal, one-user-at-a-time use, no credit card required.
+  Heavy round-the-clock use could eventually hit GitHub's monthly free
+  hours, at which point GitHub just asks you to wait for next month or
+  add billing — Jimothy has no part in that.
+- **Your data can outlive the codespace anyway.** Open Settings inside
+  Jimothy and click "Download a backup of your data" any time — that's a
+  real file (`.sqlite3`) saved to your computer's normal Downloads folder
+  through the browser, no terminal involved, and it's the way to move
+  your data to a different install later if you ever want to.
+
+### Run with Docker (recommended if you have Docker Desktop — no download, no clone, no security warnings)
 
 If you have [Docker Desktop](https://www.docker.com/products/docker-desktop/)
 and nothing else, this is one command — no `git clone`, no Python, and
@@ -84,7 +111,11 @@ a newer release: `docker pull ghcr.io/crawforj/jimothy-pm:latest &&
 docker rm -f jimothy`, then run the same command above again — your data
 in the volume is untouched, only the container is recreated. Want it to
 keep running in the background instead of holding a terminal window
-open? Add `-d` right after `docker run`.
+open? Add `-d` right after `docker run`. A Docker volume isn't something
+you can casually browse like a folder, so if you ever want a real file
+copy of your data, use the "Download a backup of your data" link on
+Jimothy's own Settings page — it works the same way here as it does
+everywhere else.
 
 Want to see or modify the source instead? That's Option A, further down.
 

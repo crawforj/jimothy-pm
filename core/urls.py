@@ -20,6 +20,7 @@ urlpatterns = [
     path("focus/done/<int:task_id>/", views.focus_done, name="focus_done"),
     path("focus/skip/<int:task_id>/", views.focus_skip, name="focus_skip"),
     path("settings/", views.settings_view, name="settings"),
+    path("settings/download/", views.download_backup, name="download_backup"),
     path("calendar/connect/graph/", views.calendar_connect_graph, name="calendar_connect_graph"),
     path("calendar/oauth/graph/callback/", views.calendar_oauth_graph_callback,
          name="calendar_oauth_graph_callback"),

@@ -263,3 +263,38 @@ class MascotMoodTests(TestCase):
         Project.objects.create(name="p", deadline=dt.date.today() + dt.timedelta(days=365))
         resp = self.client.get(reverse("today"))
         self.assertContains(resp, "jimothy-ok.svg")
+
+
+class DownloadBackupTests(TestCase):
+    # The test DB is an in-memory sqlite ("file:memorydb_default?...", no
+    # real path on disk), but the view opens settings.DATABASES's NAME as a
+    # real file -- which is true for every actual deployment (packaged exe,
+    # Docker, Codespaces, dev server) but not the test runner. Point NAME at
+    # a real, valid, on-disk sqlite file just for this test.
+    def test_returns_a_sqlite_file_attachment(self):
+        import sqlite3
+        import tempfile
+
+        with tempfile.NamedTemporaryFile(suffix=".sqlite3", delete=False) as tmp:
+            db_path = tmp.name
+        # sqlite3 doesn't actually write the file header to disk until the
+        # first real write -- connecting and closing alone leaves it empty.
+        conn = sqlite3.connect(db_path)
+        conn.execute("CREATE TABLE t (x)")
+        conn.commit()
+        conn.close()
+
+        with override_settings(DATABASES={
+            "default": {"ENGINE": "django.db.backends.sqlite3", "NAME": db_path},
+        }):
+            resp = self.client.get(reverse("download_backup"))
+
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp["Content-Disposition"].startswith("attachment;"))
+        self.assertIn(".sqlite3", resp["Content-Disposition"])
+        # SQLite files start with this fixed 16-byte header regardless of contents.
+        self.assertTrue(b"".join(resp.streaming_content).startswith(b"SQLite format 3\x00"))
+
+    def test_linked_from_settings_page(self):
+        resp = self.client.get(reverse("settings"))
+        self.assertContains(resp, reverse("download_backup"))
