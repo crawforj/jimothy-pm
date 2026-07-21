@@ -376,6 +376,44 @@ def _burndown_chart_data(burndown):
     }
 
 
+def _forecast_chart_data(forecast, today_date, deadline):
+    """Position data (percentages along a 0%=today track) for the
+    completion-forecast range bar -- reuses the existing .bar-track/
+    .bar-fill pattern from Staff's capacity bars (already establishes
+    inline style="width: X%;" for per-instance values in this codebase)
+    rather than a new chart language. The deadline marker is colored via
+    the app's existing --color-ok/--color-warn tokens (already used for
+    exactly this kind of on-track/at-risk signal elsewhere), not a new
+    accent -- status color stays separate from identity color. An
+    already-passed deadline isn't marked here at all: that's the Today
+    page's feasibility-warning's job, not this chart's."""
+    if not forecast:
+        return None
+    p50, p85 = forecast["p50"], forecast["p85"]
+    domain_end = p85
+    if deadline and deadline > today_date and deadline > domain_end:
+        domain_end = deadline
+    span_days = max((domain_end - today_date).days, 1)
+    padded_span = span_days * 1.08   # headroom so an edge marker isn't clipped
+
+    def _pct(d: dt.date) -> float:
+        return round(max((d - today_date).days, 0) / padded_span * 100, 1)
+
+    p50_pct, p85_pct = _pct(p50), _pct(p85)
+    deadline_pct = deadline_status = deadline_in_range = None
+    if deadline and deadline > today_date:
+        deadline_pct = _pct(deadline)
+        deadline_status = "ok" if deadline >= p85 else "warn"
+        deadline_in_range = deadline
+
+    return {
+        "p50_pct": p50_pct, "p85_pct": p85_pct,
+        "range_width_pct": round(p85_pct - p50_pct, 1),
+        "deadline_pct": deadline_pct, "deadline_status": deadline_status,
+        "deadline": deadline_in_range,
+    }
+
+
 def report_detail(request, project_id):
     project = get_object_or_404(Project, pk=project_id)
     today_date = dt.date.today()
@@ -397,6 +435,7 @@ def report_detail(request, project_id):
         "blockers": blockers, "recent_done": recent_done,
         "forecast": forecast, "burndown": burndown,
         "burndown_chart": _burndown_chart_data(burndown) if burndown else None,
+        "forecast_chart": _forecast_chart_data(forecast, today_date, project.deadline) if forecast else None,
         "today": today_date,
     }
     return render(request, "core/report_detail.html", context)

@@ -6,12 +6,17 @@ covering response codes, redirects, and messages without ever hitting a
 real Microsoft/Google account. The engine's own known-answer tests stay in
 engine/tests/test_engine.py; this file is for the Django layer only."""
 
+import datetime as dt
+
 from django.test import TestCase, override_settings
 from django.urls import reverse
+
+from core.views import _forecast_chart_data
 
 _FAKE_GRAPH_SETTINGS = dict(MICROSOFT_GRAPH_CLIENT_ID="test-graph-client-id")
 _FAKE_GOOGLE_SETTINGS = dict(GOOGLE_CALENDAR_CLIENT_ID="test-google-client-id",
                              GOOGLE_CALENDAR_CLIENT_SECRET="test-google-secret")
+_TODAY = dt.date(2026, 7, 21)
 
 
 class SettingsCalendarSectionTests(TestCase):
@@ -101,3 +106,51 @@ class CalendarSyncNowTests(TestCase):
         resp = self.client.post(reverse("calendar_sync_now"), follow=True)
         self.assertRedirects(resp, reverse("settings"))
         self.assertContains(resp, "Calendar sync complete.")
+
+
+class ForecastChartDataTests(TestCase):
+    """_forecast_chart_data() is the report_detail.html forecast range
+    bar's position/status math -- a pure function despite living in
+    views.py, so no DB or client needed to exercise it directly."""
+
+    def _forecast(self, p50_days, p85_days):
+        return {"p50": _TODAY + dt.timedelta(days=p50_days),
+                "p85": _TODAY + dt.timedelta(days=p85_days)}
+
+    def test_no_deadline_has_no_marker(self):
+        data = _forecast_chart_data(self._forecast(30, 50), _TODAY, None)
+        self.assertIsNone(data["deadline_pct"])
+        self.assertIsNone(data["deadline_status"])
+
+    def test_deadline_after_p85_is_ok(self):
+        data = _forecast_chart_data(self._forecast(30, 50), _TODAY,
+                                    _TODAY + dt.timedelta(days=70))
+        self.assertEqual(data["deadline_status"], "ok")
+        self.assertEqual(data["deadline_pct"], 92.6)
+
+    def test_deadline_between_p50_and_p85_is_warn(self):
+        data = _forecast_chart_data(self._forecast(30, 50), _TODAY,
+                                    _TODAY + dt.timedelta(days=40))
+        self.assertEqual(data["deadline_status"], "warn")
+
+    def test_deadline_before_p50_is_warn(self):
+        data = _forecast_chart_data(self._forecast(30, 50), _TODAY,
+                                    _TODAY + dt.timedelta(days=10))
+        self.assertEqual(data["deadline_status"], "warn")
+
+    def test_already_passed_deadline_has_no_marker(self):
+        """An overdue deadline is the Today page's feasibility-warning's
+        job, not this chart's -- must not draw a marker off the left edge
+        or crash on a negative position."""
+        data = _forecast_chart_data(self._forecast(30, 50), _TODAY,
+                                    _TODAY - dt.timedelta(days=5))
+        self.assertIsNone(data["deadline_pct"])
+        self.assertIsNone(data["deadline_status"])
+
+    def test_p50_and_p85_percentages_always_ordered(self):
+        data = _forecast_chart_data(self._forecast(30, 50), _TODAY, None)
+        self.assertLess(data["p50_pct"], data["p85_pct"])
+        self.assertGreaterEqual(data["range_width_pct"], 0)
+
+    def test_no_forecast_returns_none(self):
+        self.assertIsNone(_forecast_chart_data(None, _TODAY, None))

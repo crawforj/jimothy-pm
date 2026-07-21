@@ -65,6 +65,27 @@
         weeks: 50% chance of finishing the remaining work by
         <strong>{{ forecast.p50|date:"M j, Y" }}</strong>, 85% chance by
         <strong>{{ forecast.p85|date:"M j, Y" }}</strong>.</p>
+
+      {% if forecast_chart %}
+        <div class="range-bar-wrap">
+          <span class="range-track">
+            <span class="range-fill" style="width: {{ forecast_chart.p50_pct }}%;"></span>
+            <span class="range-fill extended" style="left: {{ forecast_chart.p50_pct }}%; width: {{ forecast_chart.range_width_pct }}%;"></span>
+            <span class="range-tick" style="left: {{ forecast_chart.p50_pct }}%;">
+              <span class="range-tick-label">50%<br>{{ forecast.p50|date:"M j" }}</span>
+            </span>
+            <span class="range-tick" style="left: {{ forecast_chart.p85_pct }}%;">
+              <span class="range-tick-label">85%<br>{{ forecast.p85|date:"M j" }}</span>
+            </span>
+            {% if forecast_chart.deadline_pct %}
+              <span class="range-tick deadline {{ forecast_chart.deadline_status }}" style="left: {{ forecast_chart.deadline_pct }}%;">
+                <span class="range-tick-label">Deadline<br>{{ forecast_chart.deadline|date:"M j" }}</span>
+              </span>
+            {% endif %}
+            <span class="range-today-label">Today</span>
+          </span>
+        </div>
+      {% endif %}
     {% else %}
       <p class="empty">Not enough completed-task history yet for a
         probabilistic forecast — needs at least 4 weeks of this project's
