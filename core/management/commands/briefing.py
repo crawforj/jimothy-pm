@@ -1,7 +1,8 @@
 """Render the morning briefing as plain text (plan §8's planned command
-list). Rendering only — sending it via Outlook COM stays out of scope until
-PROJECT_PLAN.md §10 open item #4 (classic vs. new Outlook) is answered; see
-USER_GUIDE.md."""
+list). Rendering only -- sending it via email stays a separate, still-open
+question (classic vs. new Outlook on the sending machine); see
+USER_GUIDE.md. Calendar *reads* (this command's hours-available figure) are
+unrelated and covered by §7c's OAuth-based sync."""
 
 import datetime as dt
 
@@ -9,7 +10,7 @@ from django.core.management.base import BaseCommand
 
 from core import phrases
 from core.models import Staff, Task
-from core.services import portfolio_feasibility, portfolio_scoring
+from core.services import portfolio_feasibility, portfolio_scoring, staff_day_capacity
 from engine.schedule import pack_day
 
 
@@ -45,7 +46,11 @@ class Command(BaseCommand):
             self.stdout.write("")
 
         for s in Staff.objects.filter(active=True):
-            hours_available = 0.0 if s.unavailable_on(today_date) else None
+            if s.unavailable_on(today_date):
+                hours_available = 0.0
+            else:
+                cal_capacity = staff_day_capacity(s, today_date)
+                hours_available = cal_capacity.available_hours if cal_capacity else None
             plan = pack_day(scored, s.to_engine(), hours_available=hours_available)
             self.stdout.write("%s (%.1fh free):" % (s.name, plan.hours_free))
             if not plan.entries:

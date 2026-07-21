@@ -7,7 +7,10 @@ never imports Django (plan §8), so conversion happens here.
 import datetime as dt
 
 from django.db import models
+from django.utils import timezone
 
+from engine.calendar_capacity import BusyBlock
+from engine.calendar_capacity import BusyStatus as ECalBusyStatus
 from engine.model import DelayProfile as EDelay
 from engine.model import PriorityClass as EPriority
 from engine.model import Project as EProject
@@ -54,6 +57,44 @@ class Unavailability(models.Model):
 
     def __str__(self):
         return "%s: %s - %s" % (self.staff.name, self.start_date, self.end_date)
+
+
+class CalendarEvent(models.Model):
+    """Synced from a connected calendar (plan §7c) — read-mostly, never
+    hand-authored, so no natural-date entry and no admin add permission."""
+    PROVIDER_CHOICES = [("graph", "Microsoft Outlook"), ("google", "Google Calendar")]
+    BUSY_CHOICES = [(s.value, s.value) for s in ECalBusyStatus]
+
+    staff = models.ForeignKey(Staff, on_delete=models.CASCADE,
+                              related_name="calendar_events")
+    provider = models.CharField(max_length=10, choices=PROVIDER_CHOICES)
+    source_id = models.CharField(max_length=300)
+    start = models.DateTimeField()
+    end = models.DateTimeField()
+    busy_status = models.CharField(max_length=10, choices=BUSY_CHOICES, default="busy")
+    all_day = models.BooleanField(default=False)
+    subject = models.CharField(max_length=300, blank=True)
+    synced_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(
+            fields=["staff", "provider", "source_id"], name="uniq_calendar_event_source")]
+        indexes = [models.Index(fields=["staff", "start", "end"])]
+        ordering = ["start"]
+
+    def __str__(self):
+        return "%s: %s (%s)" % (self.staff.name, self.subject or "(no subject)", self.start)
+
+    def to_busy_block(self) -> BusyBlock:
+        # engine.calendar_capacity is plain stdlib datetime, no tz awareness
+        # by design -- USE_TZ=True means start/end come back UTC-aware, so
+        # convert to local wall-clock time (and drop tzinfo) here, at the
+        # Django/engine boundary, rather than teaching the pure engine about
+        # timezones at all.
+        return BusyBlock(start=timezone.localtime(self.start).replace(tzinfo=None),
+                         end=timezone.localtime(self.end).replace(tzinfo=None),
+                         busy_status=ECalBusyStatus(self.busy_status),
+                         all_day=self.all_day)
 
 
 class Project(models.Model):

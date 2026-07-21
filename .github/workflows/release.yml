@@ -8,6 +8,14 @@ name: Release
 # on each). build-macos-binary ran for the first time via GitHub's own
 # macos-latest runners for v0.1.1 -- build and smoke test passed, treat it
 # as newly verified rather than as battle-tested as the other two.
+#
+# Each job's "Check calendar-sync deps survived the freeze" step
+# (msal/google-auth-oauthlib, added for calendar sync) exists because their
+# transitive cryptography dependency has compiled components that don't
+# always survive a --onefile freeze -- if that step ever fails, the fix is
+# --copy-metadata cryptography (and only then, if still failing,
+# --copy-metadata msal / --copy-metadata google-auth) on that job's
+# pyinstaller command, not on all three preemptively.
 
 on:
   push:
@@ -52,6 +60,13 @@ jobs:
         run: |
           $env:DJANGO_SECRET_KEY = "ci-build-smoke-test-only"
           python manage.py check
+      - name: Check calendar-sync deps survived the freeze
+        shell: pwsh
+        # msal/google-auth-oauthlib's transitive cryptography dependency
+        # has compiled components that don't always survive a --onefile
+        # freeze -- this proves it against the real built binary, which
+        # the manage.py check above (unpackaged interpreter) can't.
+        run: .\dist\Jimothy.exe --check-calendar-imports
       - name: Attach to the release
         uses: softprops/action-gh-release@v2
         with:
@@ -88,6 +103,8 @@ jobs:
         run: |
           export DJANGO_SECRET_KEY=ci-build-smoke-test-only
           python manage.py check
+      - name: Check calendar-sync deps survived the freeze
+        run: ./dist/Jimothy-linux --check-calendar-imports
       - name: Attach to the release
         uses: softprops/action-gh-release@v2
         with:
@@ -122,6 +139,8 @@ jobs:
         run: |
           export DJANGO_SECRET_KEY=ci-build-smoke-test-only
           python manage.py check
+      - name: Check calendar-sync deps survived the freeze
+        run: ./dist/Jimothy-macos --check-calendar-imports
       - name: Attach to the release
         uses: softprops/action-gh-release@v2
         with:

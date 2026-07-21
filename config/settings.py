@@ -161,11 +161,35 @@ AUTH_PASSWORD_VALIDATORS = [
 
 LANGUAGE_CODE = 'en-us'
 
-TIME_ZONE = 'UTC'
+# Calendar-sync's workday-hours math (engine/calendar_capacity.py) runs
+# against local wall-clock time -- self-hosters outside UTC should set
+# DJANGO_TIME_ZONE to their own IANA zone (e.g. "America/Denver") in .env,
+# or a synced meeting at 9am local will be measured against 9am UTC instead.
+TIME_ZONE = os.environ.get('DJANGO_TIME_ZONE', 'UTC')
 
 USE_I18N = True
 
 USE_TZ = True
+
+
+# --- Calendar OAuth (read-only sync, plan §7c) --------------------------
+# Baked-in values are True Ascent Labs LLC's own shared OAuth app
+# registrations, so "Connect Outlook"/"Connect Google" works out of the box
+# for every downloader with one click -- self-hosters running their own
+# Azure/Google registration override these the same way DJANGO_SECRET_KEY
+# is overridden above. An empty client ID means "not configured" everywhere
+# it's checked (Settings page, connect views, sync_calendar, desktop_app.py's
+# background loop) -- never a crash, never a broken empty-client_id redirect.
+MICROSOFT_GRAPH_CLIENT_ID = os.environ.get("JIMOTHY_GRAPH_CLIENT_ID", "")
+MICROSOFT_GRAPH_AUTHORITY = os.environ.get(
+    "JIMOTHY_GRAPH_AUTHORITY", "https://login.microsoftonline.com/common")
+MICROSOFT_GRAPH_REDIRECT_URI = os.environ.get(
+    "JIMOTHY_GRAPH_REDIRECT_URI", "http://localhost:8000/calendar/oauth/graph/callback/")
+
+GOOGLE_CALENDAR_CLIENT_ID = os.environ.get("JIMOTHY_GOOGLE_CLIENT_ID", "")
+GOOGLE_CALENDAR_CLIENT_SECRET = os.environ.get("JIMOTHY_GOOGLE_CLIENT_SECRET", "")
+GOOGLE_CALENDAR_REDIRECT_URI = os.environ.get(
+    "JIMOTHY_GOOGLE_REDIRECT_URI", "http://localhost:8000/calendar/oauth/google/callback/")
 
 
 # Static files (CSS, JavaScript, Images)

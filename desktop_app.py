@@ -51,6 +51,20 @@ if len(sys.argv) > 1 and sys.argv[1] in ("--install-autostart", "--uninstall-aut
     print(desktop_autostart.install() if sys.argv[1] == "--install-autostart" else desktop_autostart.uninstall())
     sys.exit(0)
 
+# CI-only smoke test: proves PyInstaller actually bundled these (msal and
+# google-auth-oauthlib's transitive cryptography dependency has compiled
+# components that don't always survive a --onefile freeze) in the real
+# built artifact -- `manage.py check` can't prove this, it only runs
+# against the unpackaged interpreter. See release.yml.
+if len(sys.argv) > 1 and sys.argv[1] == "--check-calendar-imports":
+    import cryptography  # noqa: F401
+    import google.auth  # noqa: F401
+    import google_auth_oauthlib.flow  # noqa: F401
+    import msal  # noqa: F401
+
+    print("calendar imports ok")
+    sys.exit(0)
+
 # Same frozen-path logic as config/settings.py's DATA_DIR -- duplicated
 # (not imported) because this has to run *before* django.setup(), which is
 # when settings.py actually reads the .env file. A packaged .exe ships
@@ -79,6 +93,7 @@ from django.core.management import call_command  # noqa: E402
 
 URL = "http://127.0.0.1:8000/"
 BACKUP_INTERVAL_SECONDS = 24 * 60 * 60
+SYNC_INTERVAL_SECONDS = 24 * 60 * 60
 
 
 def _open_browser_when_ready(url: str, timeout: float = 25.0) -> None:
@@ -107,6 +122,27 @@ def _auto_backup_loop() -> None:
         time.sleep(BACKUP_INTERVAL_SECONDS)
 
 
+def _any_calendar_connected() -> bool:
+    from core.calendarsync.graph_provider import GraphCalendarProvider
+    from core.calendarsync.google_provider import GoogleCalendarProvider
+
+    return any(p.is_configured() and p.status().connected
+              for p in (GraphCalendarProvider(), GoogleCalendarProvider()))
+
+
+def _auto_sync_calendar_loop() -> None:
+    """Only runs sync_calendar if something is actually connected -- stays
+    completely silent (no network calls, no log lines) for anyone who's
+    never connected a calendar, same non-fatal shape as _auto_backup_loop."""
+    while True:
+        try:
+            if _any_calendar_connected():
+                call_command("sync_calendar")
+        except Exception as exc:
+            print("Automatic calendar sync failed (Jimothy keeps running):", exc)
+        time.sleep(SYNC_INTERVAL_SECONDS)
+
+
 def main() -> None:
     if len(sys.argv) > 1 and sys.argv[1] == "backup":
         call_command("backup")
@@ -120,12 +156,14 @@ def main() -> None:
 
     threading.Thread(target=_open_browser_when_ready, args=(URL,), daemon=True).start()
     threading.Thread(target=_auto_backup_loop, daemon=True).start()
+    threading.Thread(target=_auto_sync_calendar_loop, daemon=True).start()
 
     print()
     print("Jimothy is running. This window is its log -- closing it stops the app.")
     print("If your browser didn't open automatically, go to:", URL)
     print("Your data is backed up daily to the 'backups' folder next to this app.")
     print("To start Jimothy automatically at login, run it again with --install-autostart.")
+    print("Connect a calendar under Settings to sync real meeting time daily.")
     print()
 
     call_command("runserver", "127.0.0.1:8000", use_reloader=False)

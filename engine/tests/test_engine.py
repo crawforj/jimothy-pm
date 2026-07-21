@@ -3,6 +3,7 @@
 import datetime as dt
 import unittest
 
+from engine.calendar_capacity import BusyBlock, BusyStatus, day_capacity
 from engine.dateparse import parse_natural_date
 from engine.estimate import (HistoryRecord, calibration_factors, pert_expected,
                              pert_stddev, template_estimate, uplift_for)
@@ -496,6 +497,62 @@ class TestWeeklyLoad(unittest.TestCase):
         self.assertEqual(wk.capacity_hours, 30.0)   # 8*0.75*5
         self.assertTrue(wk.over_capacity)
         self.assertEqual(wk.pct, 100)                # capped, doesn't overflow the bar
+
+
+class TestCalendarCapacity(unittest.TestCase):
+    def _at(self, hour, minute=0):
+        return dt.datetime.combine(TODAY, dt.time(hour, minute))
+
+    def test_busy_meeting_subtracted_then_haircut(self):
+        blocks = [BusyBlock(self._at(9), self._at(11), BusyStatus.BUSY)]
+        cap = day_capacity(TODAY, 8.0, blocks)
+        self.assertEqual(cap.meeting_hours, 2.0)
+        self.assertEqual(cap.available_hours, 5.1)   # (8-2)*0.85
+        self.assertFalse(cap.has_tentative)
+
+    def test_tentative_not_subtracted_but_flagged(self):
+        blocks = [BusyBlock(self._at(9), self._at(11), BusyStatus.TENTATIVE)]
+        cap = day_capacity(TODAY, 8.0, blocks)
+        self.assertEqual(cap.meeting_hours, 0.0)
+        self.assertEqual(cap.available_hours, 6.8)    # 8*0.85
+        self.assertTrue(cap.has_tentative)
+
+    def test_free_block_ignored(self):
+        blocks = [BusyBlock(self._at(8), self._at(17), BusyStatus.FREE)]
+        cap = day_capacity(TODAY, 8.0, blocks)
+        self.assertEqual(cap.meeting_hours, 0.0)
+        self.assertFalse(cap.has_tentative)
+
+    def test_out_of_office_all_day_zeroes_day(self):
+        blocks = [BusyBlock(self._at(0), self._at(0), BusyStatus.OUT_OF_OFFICE, all_day=True)]
+        cap = day_capacity(TODAY, 8.0, blocks)
+        self.assertEqual(cap.meeting_hours, 8.0)
+        self.assertEqual(cap.available_hours, 0.0)
+
+    def test_busy_block_clipped_to_workday(self):
+        blocks = [BusyBlock(self._at(7), self._at(9), BusyStatus.BUSY)]
+        cap = day_capacity(TODAY, 8.0, blocks, workday_start=dt.time(8, 0))
+        self.assertEqual(cap.meeting_hours, 1.0)      # only 8-9, not 7-9
+
+    def test_overlapping_busy_blocks_not_double_counted(self):
+        blocks = [BusyBlock(self._at(9), self._at(11), BusyStatus.BUSY),
+                 BusyBlock(self._at(10), self._at(12), BusyStatus.BUSY)]
+        cap = day_capacity(TODAY, 8.0, blocks)
+        self.assertEqual(cap.meeting_hours, 3.0)      # union 9-12, not 4.0
+
+    def test_double_booked_floors_at_zero_not_negative(self):
+        blocks = [BusyBlock(self._at(8), self._at(17), BusyStatus.BUSY),
+                 BusyBlock(self._at(8), self._at(17), BusyStatus.OUT_OF_OFFICE)]
+        cap = day_capacity(TODAY, 8.0, blocks)
+        self.assertEqual(cap.available_hours, 0.0)
+        self.assertGreaterEqual(cap.available_hours, 0.0)
+
+    def test_multiple_tentative_and_busy_mixed(self):
+        blocks = [BusyBlock(self._at(9), self._at(10), BusyStatus.BUSY),
+                 BusyBlock(self._at(14), self._at(15), BusyStatus.TENTATIVE)]
+        cap = day_capacity(TODAY, 8.0, blocks)
+        self.assertEqual(cap.meeting_hours, 1.0)
+        self.assertTrue(cap.has_tentative)
 
 
 if __name__ == "__main__":

@@ -55,6 +55,7 @@
           <span class="capacity">{{ p.hours_free|floatformat:1 }}h free of {{ p.staff.nominal_hours_per_day|floatformat:0 }}h nominal</span>
         </div>
         {% if p.over_wip %}<p class="warn-box">{{ wip_warning }}</p>{% endif %}
+        {% if p.tentative_warning %}<p class="warn-box">Has a tentative meeting today that isn't counted against free hours yet.</p>{% endif %}
         {% if p.entries %}
           <ol class="tasklist">
             {% for e in p.entries %}

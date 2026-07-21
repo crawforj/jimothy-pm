@@ -3,7 +3,9 @@
 **Status:** Phases 1–3 built, plus most of Phase 4. See
 [USER_GUIDE.md](USER_GUIDE.md) for what actually runs today and
 [§11](#11-competitive-gap-closing-roadmap) for what's next.
-**Runs on:** single Windows machine, no server, no cloud dependency
+**Runs on:** one machine (Windows/macOS/Linux), local SQLite, no team-facing
+server -- calendar sync (§7c) is the one feature with a cloud round-trip
+(OAuth against Microsoft Graph/Google Calendar), opt-in per provider
 
 ---
 
@@ -56,8 +58,8 @@ Scrum-master overlay (PMBOK-compatible, agile-flavored):
 Staff(id, name, role, nominal_hours_per_day, focus_factor,     -- §6b defaults 0.75 / 0.60 mgr
       calendar_shared, skills, active)
 Unavailability(staff_id, start_date, end_date, reason)          -- PTO, training
-CalendarEvent(staff_id, source_id, start, end, busy_status,     -- §7c Outlook sync
-              all_day, subject)                                 -- subject only for the manager's own events
+CalendarEvent(staff_id, provider, source_id, start, end,        -- §7c OAuth calendar sync
+              busy_status, all_day, subject)                    -- subject only for the manager's own events
 Project(id, name, priority_class, deadline, baseline_task_count,
         budget_staff_days, status, sponsor_notes, out_of_scope) -- budget prescribed externally, §6
 Milestone(id, project_id, name, due_date, status)
@@ -201,43 +203,57 @@ self-correcting loop is enough:
   The flat focus factor stays as the fallback for staff without shared
   calendars and for far-future planning beyond the calendar sync window.
 
-## 7c. Outlook calendar integration
+## 7c. Calendar sync (Microsoft Graph + Google Calendar)
 
-Read-mostly integration with the user's Outlook calendar, using a **local
-Outlook COM (win32com) integration** — no Azure app registration, no cloud
-round-trip, fits the single-machine design.
+Read-mostly integration, OAuth-based against **Microsoft Graph** and
+**Google Calendar** — not local Outlook COM automation, which was the
+original design here until jimothy-pm became a public, cross-platform
+product (Windows/macOS/Linux binaries): COM only exists on Windows with
+classic Outlook installed, would leave macOS/Linux and "new Outlook" users
+with nothing, and can't reach Google at all. Graph works against either
+Outlook client and any OS, which is what actually resolves §10 item 4 below
+rather than deferring around it.
 
-**Reads (core):**
-- `manage.py sync_calendar` pulls appointments for a rolling window (default
-  next 6 weeks + past 2 weeks) from the default calendar: start, end, busy
-  status, all-day flag, subject, recurrence-expanded.
-- Stored as `CalendarEvent(staff_id, source_id, start, end, busy_status,
-  all_day, subject)`. Only Busy/Out-of-Office statuses count against capacity;
-  Free/Tentative don't (tentative shown as a soft warning on the day).
-- Feeds capacity math per §6b: Today view shows a real timeline of the day —
-  meetings as fixed blocks, task queue packed into the actual gaps. Past-window
-  events feed the observed-focus-factor calibration with real data.
-- Staff calendars: where a staff member's calendar is shared with the user,
-  the same sync reads their **busy/free times only** (no subjects stored for
-  staff — privacy by default). Unshared staff fall back to the flat factor.
+A `CalendarProvider` interface (`core/calendarsync/base.py`) is implemented
+once per provider (`graph_provider.py`, `google_provider.py`); callers
+(views, `sync_calendar`, `desktop_app.py`'s background loop) only ever talk
+to the interface. Both OAuth app registrations (Azure Portal, Google Cloud
+Console) are one-time setup only True Ascent Labs LLC can do; the public
+binary ships with those client IDs baked in (env-var overridable for
+self-hosters running their own registration) so Connect works out of the
+box for every downloader — see USER_GUIDE.md's "Connecting your calendar."
 
-**Writes (opt-in, each behind its own setting):**
-- Push project **milestones/deadlines as all-day Outlook events** in a
-  dedicated "Jimothy" calendar folder (never the main calendar), so deadlines
-  are visible wherever Outlook is.
+**Reads (core, v1's only scope — writes below are a later phase):**
+- `manage.py sync_calendar` pulls events for a rolling window (default next
+  6 weeks + past 2 weeks) from whichever provider(s) are connected: start,
+  end, busy status, all-day flag, subject.
+- Stored as `CalendarEvent(staff_id, provider, source_id, start, end,
+  busy_status, all_day, subject)`, upserted on `(staff, provider,
+  source_id)`. Only Busy/Out-of-Office statuses count against capacity;
+  Free/Tentative don't (tentative shown as a soft warning on the day) --
+  see `engine/calendar_capacity.py` for the pure hours math.
+- Feeds capacity math per §6b: `pack_day`'s existing `hours_available`
+  override (already built for the flat-factor case) is what real calendar
+  data plugs into. Today, Focus, and the morning briefing all use it.
+- v1 scope: both Connect buttons (Settings) are global, tied to whichever
+  Staff row has `is_manager=True` -- one Microsoft connection, one Google
+  connection per running instance, not per-staff-member. `calendar_shared`
+  keeps its existing meaning (gates whether *subject text* is ever stored
+  for a non-primary staff row) but is inert until a later phase lets
+  individual staff connect their own calendars.
+
+**Writes (not yet built -- explicit later phase):**
+- Push project **milestones/deadlines as all-day events** in a dedicated
+  "Jimothy" calendar, never the main one.
 - **Focus blocks:** from Focus Mode, one click reserves a calendar block for
-  the current ONE thing — defends the time from meeting creep.
-- Sync is one-directional per item (Jimothy → its own folder only); Jimothy
-  never modifies or deletes events it didn't create.
+  the current ONE thing.
+- Would stay one-directional per item (Jimothy → its own calendar/folder
+  only); Jimothy would never modify or delete events it didn't create.
 
-**Scheduling & caveats:**
-- Sync runs on demand from the UI plus a morning scheduled-task run just
-  before the briefing (a small local wrapper script).
-- COM requires **classic Outlook**; the "new Outlook" client does not expose
-  COM automation. If the machine is ever migrated to new Outlook, the fallback
-  is Microsoft Graph API with device-code sign-in — the `CalendarEvent` table
-  and all downstream logic are unchanged, only the fetcher swaps. Build the
-  fetcher behind an interface from day one.
+**Scheduling:**
+- Sync runs on demand from Settings' "Sync now," plus automatically every
+  24h from `desktop_app.py`'s background thread when the packaged app is
+  running and at least one provider is connected (silent/no-op otherwise).
 - Build phase: reads land in **Phase 3** (they make capacity real); writes are
   **Phase 4** polish.
 
@@ -347,10 +363,10 @@ allows it; explicit export/import is the guaranteed fallback.
   client-side (Tier 3).
 - The SQLite file is the *only* state, and its schema is the contract; any tier
   can pick up another tier's file.
-- Outlook COM integration (§7c) is Tier-1-only and degrades gracefully: absent
-  COM, calendar sync falls back to the flat focus factor, or to an `.ics`
-  export dropped in a watched folder if the target machine's Outlook allows
-  exporting.
+- Calendar sync (§7c) needs outbound HTTPS to Microsoft/Google, which a
+  locked-down machine may not allow -- absent that, it degrades gracefully
+  to the flat focus factor, same as any Staff row that's never connected
+  anything. No local-COM dependency to worry about at any tier anymore.
 
 ## 9. Build phases
 
@@ -381,10 +397,15 @@ Still open:
 3. Where actual hours come from — quick daily logging in Jimothy vs. rough
    weekly true-up vs. import from timesheets. (Default assumption: rough
    weekly true-up at sprint close, since it's the lightest habit.)
-4. Classic Outlook vs. "new Outlook" on this machine (§7c caveat) — determines
-   COM vs. Graph fetcher at build time. **2026-07-18: deferred by the user** —
-   calendar sync/writes and the briefing email stay out of scope until this
-   is answered.
+
+**Resolved 2026-07-21:** item 4 ("classic vs. new Outlook on this machine,"
+deferred 2026-07-18) is moot -- calendar sync (§7c) is now Microsoft
+Graph/Google Calendar OAuth, not local Outlook COM automation, so it works
+identically regardless of which Outlook client (or OS) is installed. Reads
+are built; writes (milestones/focus-blocks pushed to a calendar) remain a
+separate, still-unbuilt later phase. The morning briefing *email* specifically
+(as opposed to calendar reads) is a different, still-open question --
+Outlook COM vs. Graph vs. plain SMTP for actually sending it.
 
 Partially addressed 2026-07-18: item 3 now has a real option, not just a
 default assumption — **Focus Mode** (§7b) offers quick timer-based logging

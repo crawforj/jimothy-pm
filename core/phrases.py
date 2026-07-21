@@ -72,6 +72,23 @@ def closeout_message(velocity: float) -> str:
     return random.choice(CLOSEOUT_MESSAGES).format(velocity=velocity)
 
 
+def calendar_connected(provider_name: str, account_label: str | None) -> str:
+    who = " as %s" % account_label if account_label else ""
+    return "Connected to %s%s." % (provider_name, who)
+
+
+def calendar_disconnected(provider_name: str) -> str:
+    return "Disconnected from %s." % provider_name
+
+
+def calendar_connect_failed(provider_name: str, detail: str) -> str:
+    return "Couldn't connect to %s: %s" % (provider_name, detail)
+
+
+def calendar_not_configured(provider_name: str) -> str:
+    return "%s sync isn't available in this build." % provider_name
+
+
 def ev_summary(spi: float | None, cpi: float | None) -> str:
     """Plain-English SPI/CPI label, per plan §6's example phrasing."""
     if spi is None and cpi is None:

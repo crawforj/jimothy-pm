@@ -51,4 +51,41 @@
       </div>
     </form>
   </section>
+
+  <section aria-labelledby="calendar-h">
+    <h2 id="calendar-h">Calendar sync (read-only)</h2>
+    <p class="sub">
+      Connect your calendar so real meeting time counts against today's
+      available hours instead of the flat estimate. Busy and Out-of-office
+      time subtracts hours; Tentative shows a soft warning but doesn't.
+    </p>
+    {% for row in calendar_rows %}
+      <div class="card">
+        <div class="person-header">
+          <h3>{{ row.display_name }}</h3>
+          {% if row.connected %}<span class="pill">Connected</span>{% endif %}
+        </div>
+        {% if not row.configured %}
+          <p class="sub">Not available in this build (no client ID configured).</p>
+        {% elif row.connected %}
+          <p class="sub">
+            Connected as {{ row.account_label|default:"an account" }}.
+            {% if row.last_synced %}Last synced {{ row.last_synced }}.{% else %}Not synced yet.{% endif %}
+          </p>
+          <form method="post" action="{{ row.disconnect_url }}" class="inline">
+            {% csrf_token %}
+            <button type="submit" class="link-btn">Disconnect</button>
+          </form>
+        {% else %}
+          <p><a href="{{ row.connect_url }}">Connect {{ row.display_name }}</a></p>
+        {% endif %}
+      </div>
+    {% endfor %}
+    {% if any_calendar_connected %}
+      <form method="post" action="{% url 'calendar_sync_now' %}">
+        {% csrf_token %}
+        <button type="submit">Sync now</button>
+      </form>
+    {% endif %}
+  </section>
 {% endblock %}

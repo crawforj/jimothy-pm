@@ -19,4 +19,13 @@ urlpatterns = [
     path("focus/done/<int:task_id>/", views.focus_done, name="focus_done"),
     path("focus/skip/<int:task_id>/", views.focus_skip, name="focus_skip"),
     path("settings/", views.settings_view, name="settings"),
+    path("calendar/connect/graph/", views.calendar_connect_graph, name="calendar_connect_graph"),
+    path("calendar/oauth/graph/callback/", views.calendar_oauth_graph_callback,
+         name="calendar_oauth_graph_callback"),
+    path("calendar/connect/google/", views.calendar_connect_google, name="calendar_connect_google"),
+    path("calendar/oauth/google/callback/", views.calendar_oauth_google_callback,
+         name="calendar_oauth_google_callback"),
+    path("calendar/disconnect/<str:provider_key>/", views.calendar_disconnect,
+         name="calendar_disconnect"),
+    path("calendar/sync-now/", views.calendar_sync_now, name="calendar_sync_now"),
 ]

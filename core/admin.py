@@ -2,8 +2,8 @@ from django.contrib import admin
 from django.db import models as django_models
 
 from core.forms import NaturalDateField
-from core.models import (Milestone, Project, RiskItem, ScoringSettings, Sprint, Staff,
-                         Task, Unavailability, WorkLog)
+from core.models import (CalendarEvent, Milestone, Project, RiskItem, ScoringSettings,
+                         Sprint, Staff, Task, Unavailability, WorkLog)
 
 # Plain text date entry everywhere (accepts "next friday", "in 3 days", or a
 # straight ISO date) instead of the click-only admin calendar widget (plan
@@ -85,6 +85,16 @@ class SprintAdmin(admin.ModelAdmin):
 class WorkLogAdmin(admin.ModelAdmin):
     list_display = ("task", "staff", "date", "hours")
     formfield_overrides = NATURAL_DATE_OVERRIDES
+
+
+@admin.register(CalendarEvent)
+class CalendarEventAdmin(admin.ModelAdmin):
+    list_display = ("staff", "provider", "start", "end", "busy_status", "all_day")
+    list_filter = ("provider", "busy_status", "staff")
+    date_hierarchy = "start"
+
+    def has_add_permission(self, request):
+        return False
 
 
 admin.site.register(ScoringSettings)

@@ -10,7 +10,8 @@ from __future__ import annotations
 import datetime as dt
 import logging
 
-from core.models import Project, ScoringSettings, Sprint, Staff, Task
+from core.models import CalendarEvent, Project, ScoringSettings, Sprint, Staff, Task
+from engine.calendar_capacity import DayCapacity, day_capacity
 from engine.estimate import HistoryRecord, calibration_factors, pert_expected, uplift_for
 from engine.model import Task as ETask
 from engine.schedule import compute_criticality, feasibility
@@ -82,6 +83,22 @@ def portfolio_feasibility(scored: list[ScoredTask], staff: list[Staff],
         logger.exception("Jimothy feasibility check failed")
         return {}
     return {fc.project_id: fc for fc in forecasts}
+
+
+def staff_day_capacity(staff: Staff, day: dt.date) -> DayCapacity | None:
+    """Real calendar-derived capacity for one staff member on one day
+    (plan §7c), or None if nothing is synced for them -- callers then fall
+    back to the existing flat focus-factor default, same shape as
+    unavailable_on()."""
+    events = CalendarEvent.objects.filter(staff=staff, start__date__lte=day, end__date__gte=day)
+    if not events.exists():
+        return None
+    try:
+        blocks = [e.to_busy_block() for e in events]
+        return day_capacity(day, staff.nominal_hours_per_day, blocks)
+    except Exception:
+        logger.exception("Jimothy calendar capacity calc failed for staff %s", staff.pk)
+        return None
 
 
 def get_or_create_sprint(today_date: dt.date | None = None) -> Sprint:

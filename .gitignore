@@ -7,5 +7,6 @@ __pycache__/
 .env
 *.log
 backups/
+calendar_tokens/
 phase0/spike_result.txt
 phase0/python-embed/

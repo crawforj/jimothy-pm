@@ -12,11 +12,11 @@
 
 Jimothy is being built in phases (see [PROJECT_PLAN.md §9](PROJECT_PLAN.md#9-build-phases)).
 As of this guide, **Phase 1–3 are in place, plus most of Phase 4 except
-anything that needs Outlook or the real deployment machine**:
+the morning-briefing email and the real deployment machine**:
 
 | Working today | Not built yet |
 |---|---|
-| Django app with Staff / Project / Milestone / Task / Risk / Sprint / WorkLog / Unavailability models | Outlook calendar sync (reads or writes) |
+| Django app with Staff / Project / Milestone / Task / Risk / Sprint / WorkLog / Unavailability / CalendarEvent models | Calendar *writes* — pushing milestones/focus-blocks to a calendar (§7c) |
 | Full admin CRUD for your portfolio at `/admin/`, with natural-language date entry (§4) | Morning-briefing *email* (the text version renders — see §10) |
 | **Today, Week, Month, Quarter, Year** views | Deployment beyond your own machine (Phase 0 spike kit exists but hasn't been run) |
 | **Projects, Staff, Reports** dashboards | |
@@ -28,11 +28,12 @@ anything that needs Outlook or the real deployment machine**:
 | Simple earned value (PV/EV/AC, SPI/CPI) on Quarter, Projects, and Reports (§7, §9) | |
 | **Focus Mode** — one task at a time, with a start/done timer (§5b) | |
 | **Settings** — the five scoring weights, tunable without touching code (§5c) | |
+| **Calendar sync (read-only)** — connect Outlook and/or Google Calendar; real meeting time replaces the flat capacity estimate (§5d) | |
 | **Recurring tasks** — the next occurrence spawns automatically on completion, with a **learned estimate** once ≥3 completions exist (§4) | |
 | **Needs-triage section** on Today for tasks with no estimate yet (§3) | |
 | **Forward capacity timeline** on Staff — 6 weeks of load vs. capacity per person (§8) | |
 | **Monte Carlo completion forecast** (P50/P85) on each project's Report page, once ≥4 weeks of that project's own throughput history exists (§9) | |
-| `seed_demo`, `closeout`, `backup`, `briefing` management commands (§10) | |
+| `seed_demo`, `closeout`, `backup`, `briefing`, `sync_calendar` management commands (§10) | |
 
 See [PROJECT_PLAN.md §11](PROJECT_PLAN.md#11-competitive-gap-closing-roadmap)
 for the prioritized list of what's next, benchmarked against tools like
@@ -283,6 +284,35 @@ plan's original values (4.0 / 2.0 / 1.5 / 0.5 / 1.0).
 
 ---
 
+## 5d. Connecting your calendar
+
+Also on **Settings**, below the scoring weights: **Connect Outlook** and
+**Connect Google** buttons. Clicking one sends your browser to Microsoft's
+or Google's real sign-in and consent screen — Jimothy never sees your
+password, only a token once you approve. After that, Settings shows
+"Connected as {your account}" and a **Sync now** button.
+
+What syncing actually does: real Busy/Out-of-office meeting time on your
+calendar replaces the flat capacity estimate on Today, Focus, and the
+morning briefing for whichever Staff row is marked **manager** — a
+Tentative meeting shows as a soft warning instead of blocking time outright.
+This is read-only in the current build: nothing is ever written back to
+your calendar. Sync also runs automatically once a day if you're using the
+downloaded app (`Jimothy.exe`/`Jimothy-macos`/`Jimothy-linux`) — see the
+README's "Keeping Jimothy running."
+
+If a Connect button says **"Not available in this build"** instead of
+doing anything, the client ID for that provider isn't configured on this
+install — normal for a from-source dev setup where you haven't set
+`JIMOTHY_GRAPH_CLIENT_ID`/`JIMOTHY_GOOGLE_CLIENT_ID` in `.env` yet (see
+`.env.example`), not something wrong with your account.
+
+**Disconnect** clears the stored token on this machine only — it doesn't
+revoke access on Microsoft's/Google's side; if you ever need a hard revoke,
+do that from your Microsoft or Google account's own security settings.
+
+---
+
 ## 6. Week — the sprint loop
 
 The **Week** view (top nav) is this week's sprint board, Monday to Sunday.
@@ -392,12 +422,18 @@ rather than a misleading 0%. That's expected, not a bug.
 Beyond `seed_demo` (§2) and `closeout` (§6):
 
 - **`python manage.py briefing`** — renders today's briefing (greeting,
-  warnings, chase list, per-person queue) as plain text to the terminal.
-  This is the same content the Today page shows, in a script-friendly form.
-  It does **not** send an email — Outlook COM integration is still gated on
-  PROJECT_PLAN.md's open item #4 (classic vs. new Outlook on the target
-  machine); wiring `briefing` up to actually send is a small follow-up once
-  that's answered.
+  warnings, chase list, per-person queue) as plain text to the terminal,
+  using real synced-calendar capacity wherever it's connected (§5d). This
+  is the same content the Today page shows, in a script-friendly form. It
+  does **not** send an email — that's a separate, still-open question
+  (Outlook COM vs. Graph vs. plain SMTP for the sending mechanism itself),
+  unrelated to calendar sync being read-only in this build.
+- **`python manage.py sync_calendar`** — pulls events from whichever
+  provider(s) are connected on Settings (§5d) into `CalendarEvent`, for a
+  rolling window of 2 weeks back / 6 weeks forward by default
+  (`--weeks-back`/`--weeks-forward` to change either). Skips silently if
+  nothing's connected. The packaged build runs this automatically once a
+  day; Settings' **Sync now** button runs it on demand.
 - **`python manage.py backup`** — copies `db.sqlite3` to
   `backups/jimothy-YYYY-MM-DD.sqlite3` (gitignored), then prunes older
   copies down to the most recent 14 (`--keep N` to change that, `--keep 0`
@@ -418,10 +454,13 @@ config/            Django project settings, URLs
 core/               Models, admin, views, services.py (shared query→engine
                     glue), forms.py (NaturalDateField), phrases.py (all the
                     copy), templates/core/ (base.html + one template per page)
-core/management/commands/   seed_demo, closeout, backup, briefing
-engine/             Pure-Python scoring/scheduling/EV/sprint engine — no
-                    Django imports, unit-tested in engine/tests/, designed to
-                    also run inside a browser via Pyodide later (§8b)
+core/calendarsync/  CalendarProvider abstraction + Graph/Google OAuth
+                    implementations (§5d, §7c) — the only part of core/
+                    that talks to the network
+core/management/commands/   seed_demo, closeout, backup, briefing, sync_calendar
+engine/             Pure-Python scoring/scheduling/EV/sprint/calendar-capacity
+                    engine — no Django imports, unit-tested in engine/tests/,
+                    designed to also run inside a browser via Pyodide later (§8b)
 phase0/             Deployment spike kit for a locked-down, no-admin machine —
                     see phase0/README.md
 ```

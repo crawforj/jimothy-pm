@@ -159,6 +159,13 @@
 </nav>
 
 <main id="main">
+{% if messages %}
+  {% for message in messages %}
+    <div class="{% if message.tags == 'error' or message.tags == 'warning' %}warn-box{% else %}ok-box{% endif %}" role="status">
+      {{ message }}
+    </div>
+  {% endfor %}
+{% endif %}
 {% block content %}{% endblock %}
 </main>
 

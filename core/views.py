@@ -2,20 +2,28 @@ import calendar
 import datetime as dt
 import logging
 
+from django.contrib import messages
+from django.core.management import call_command
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.views.decorators.http import require_POST
 
 from core import phrases
-from core.models import Milestone, Project, RiskItem, ScoringSettings, Staff, Task, WorkLog
+from core.calendarsync.graph_provider import GraphCalendarProvider
+from core.calendarsync.google_provider import GoogleCalendarProvider
+from core.models import CalendarEvent, Milestone, Project, RiskItem, ScoringSettings, Staff, Task, WorkLog
 from core.services import (build_uplifts, calibration_history, get_or_create_sprint,
                            portfolio_feasibility, portfolio_scoring, project_ev_metrics,
-                           project_monte_carlo)
+                           project_monte_carlo, staff_day_capacity)
 from engine.estimate import calibration_factors
 from engine.schedule import compute_criticality, pack_day, weekly_load
 from engine.sprint import committed_capacity, compute_velocity, week_start
 
 logger = logging.getLogger(__name__)
+
+
+def _calendar_provider(provider_key: str):
+    return {"graph": GraphCalendarProvider(), "google": GoogleCalendarProvider()}.get(provider_key)
 
 
 def today(request):
@@ -27,7 +35,13 @@ def today(request):
 
     people = []
     for s in staff:
-        hours_available = 0.0 if s.unavailable_on(today_date) else None
+        tentative_warning = False
+        if s.unavailable_on(today_date):
+            hours_available = 0.0
+        else:
+            cal_capacity = staff_day_capacity(s, today_date)
+            hours_available = cal_capacity.available_hours if cal_capacity else None
+            tentative_warning = bool(cal_capacity and cal_capacity.has_tentative)
         plan = pack_day(scored, s.to_engine(), hours_available=hours_available)
         entries = []
         for tid, hours in plan.entries:
@@ -40,6 +54,7 @@ def today(request):
             "staff": s, "entries": entries,
             "hours_free": plan.hours_free,
             "over_wip": plan.at_wip_cap,
+            "tentative_warning": tentative_warning,
         })
 
     unassigned = [s for s in scored if s.task.assignee_id is None and not s.dead]
@@ -363,7 +378,11 @@ def focus(request):
     if person:
         skip_key = "focus_skipped_%s_%s" % (person.pk, today_date.isoformat())
         skipped = set(request.session.get(skip_key, []))
-        hours_available = 0.0 if person.unavailable_on(today_date) else None
+        if person.unavailable_on(today_date):
+            hours_available = 0.0
+        else:
+            cal_capacity = staff_day_capacity(person, today_date)
+            hours_available = cal_capacity.available_hours if cal_capacity else None
         plan = pack_day(scored, person.to_engine(), hours_available=hours_available)
         for tid, hours in plan.entries:
             if tid not in skipped:
@@ -442,4 +461,80 @@ def settings_view(request):
                     pass
         settings_obj.save()
         return redirect("settings")
-    return render(request, "core/settings.html", {"settings": settings_obj})
+
+    calendar_rows = []
+    for provider in (GraphCalendarProvider(), GoogleCalendarProvider()):
+        status = provider.status()
+        last_synced = (CalendarEvent.objects.filter(provider=provider.key)
+                      .order_by("-synced_at").values_list("synced_at", flat=True).first())
+        calendar_rows.append({
+            "key": provider.key,
+            "display_name": provider.display_name,
+            "configured": provider.is_configured(),
+            "connected": status.connected,
+            "account_label": status.account_label,
+            "last_synced": last_synced,
+            "connect_url": reverse("calendar_connect_%s" % provider.key),
+            "disconnect_url": reverse("calendar_disconnect", args=[provider.key]),
+        })
+
+    return render(request, "core/settings.html", {
+        "settings": settings_obj,
+        "calendar_rows": calendar_rows,
+        "any_calendar_connected": any(row["connected"] for row in calendar_rows),
+    })
+
+
+def calendar_connect_graph(request):
+    return _calendar_connect_start(request, GraphCalendarProvider())
+
+
+def calendar_connect_google(request):
+    return _calendar_connect_start(request, GoogleCalendarProvider())
+
+
+def calendar_oauth_graph_callback(request):
+    return _calendar_connect_finish(request, GraphCalendarProvider())
+
+
+def calendar_oauth_google_callback(request):
+    return _calendar_connect_finish(request, GoogleCalendarProvider())
+
+
+def _calendar_connect_start(request, provider):
+    if not provider.is_configured():
+        messages.error(request, phrases.calendar_not_configured(provider.display_name))
+        return redirect("settings")
+    return redirect(provider.start_auth(request))
+
+
+def _calendar_connect_finish(request, provider):
+    try:
+        provider.handle_callback(request)
+    except Exception as exc:
+        logger.exception("Jimothy %s OAuth callback failed", provider.key)
+        messages.error(request, phrases.calendar_connect_failed(provider.display_name, str(exc)))
+        return redirect("settings")
+    account_label = provider.status().account_label
+    messages.success(request, phrases.calendar_connected(provider.display_name, account_label))
+    return redirect("settings")
+
+
+@require_POST
+def calendar_disconnect(request, provider_key):
+    provider = _calendar_provider(provider_key)
+    if provider:
+        provider.disconnect()
+        messages.success(request, phrases.calendar_disconnected(provider.display_name))
+    return redirect("settings")
+
+
+@require_POST
+def calendar_sync_now(request):
+    try:
+        call_command("sync_calendar")
+        messages.success(request, "Calendar sync complete.")
+    except Exception:
+        logger.exception("Jimothy manual calendar sync failed")
+        messages.error(request, "Sync failed -- see the server log.")
+    return redirect("settings")
