@@ -11,7 +11,7 @@ import datetime as dt
 from django.test import TestCase, override_settings
 from django.urls import reverse
 
-from core.models import Staff
+from core.models import Project, Staff, Task
 from core.views import _forecast_chart_data, _heatmap_data
 from engine.schedule import WeekLoad
 
@@ -196,3 +196,38 @@ class HeatmapDataTests(TestCase):
         resp = self.client.get(reverse("staff"))
         self.assertEqual(resp.status_code, 200)
         self.assertContains(resp, "Team capacity")
+
+
+class WeekMoveStatusTests(TestCase):
+    def setUp(self):
+        self.project = Project.objects.create(name="p")
+        self.task = Task.objects.create(project=self.project, title="t", status="todo")
+
+    def test_valid_status_change_persists(self):
+        resp = self.client.post(reverse("week_move", args=[self.task.pk]),
+                                {"status": "doing"})
+        self.assertRedirects(resp, reverse("week"))
+        self.task.refresh_from_db()
+        self.assertEqual(self.task.status, "doing")
+        self.assertEqual(self.task.last_touched, dt.date.today())
+
+    def test_invalid_status_is_a_no_op_not_a_500(self):
+        resp = self.client.post(reverse("week_move", args=[self.task.pk]),
+                                {"status": "not-a-real-status"})
+        self.assertRedirects(resp, reverse("week"))
+        self.task.refresh_from_db()
+        self.assertEqual(self.task.status, "todo")
+
+    def test_missing_status_is_a_no_op(self):
+        resp = self.client.post(reverse("week_move", args=[self.task.pk]), {})
+        self.assertRedirects(resp, reverse("week"))
+        self.task.refresh_from_db()
+        self.assertEqual(self.task.status, "todo")
+
+    def test_get_not_allowed(self):
+        resp = self.client.get(reverse("week_move", args=[self.task.pk]))
+        self.assertEqual(resp.status_code, 405)
+
+    def test_nonexistent_task_404s(self):
+        resp = self.client.post(reverse("week_move", args=[999999]), {"status": "doing"})
+        self.assertEqual(resp.status_code, 404)

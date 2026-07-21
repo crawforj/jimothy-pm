@@ -132,6 +132,7 @@ def week(request):
         "week_start": ws,
         "week_end": ws + dt.timedelta(days=6),
         "board": board,
+        "status_choices": [(col["key"], col["label"]) for col in board],
         "candidates": candidates,
         "committed_hours": committed_hours,
         "capacity_hours": capacity_hours,
@@ -150,6 +151,22 @@ def week_commit(request, task_id):
         sprint.committed.remove(task)
     else:
         sprint.committed.add(task)
+    return redirect("week")
+
+
+@require_POST
+def week_move_status(request, task_id):
+    """Move a task between the sprint board's status columns -- the
+    dropdown+button is the real control (works with zero JS, same as
+    every other action on this page); the board's drag-and-drop just
+    programmatically fills in and submits this same form, native HTML5
+    drag being mouse-only and not a substitute for a real control."""
+    task = get_object_or_404(Task, pk=task_id)
+    new_status = request.POST.get("status")
+    if new_status in dict(Task.STATUS_CHOICES):
+        task.status = new_status
+        task.last_touched = dt.date.today()
+        task.save()
     return redirect("week")
 
 

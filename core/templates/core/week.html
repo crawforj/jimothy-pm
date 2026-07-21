@@ -22,19 +22,33 @@
 
   <section aria-labelledby="board-h">
     <h2 id="board-h">Sprint board</h2>
+    <p class="sub">Drag a task to a new column, or use its Move control — both change the same status.</p>
     <div class="board">
       {% for col in board %}
-        <div class="column">
+        <div class="column" data-status="{{ col.key }}">
           <h3>{{ col.label }} <span class="pill">{{ col.tasks|length }}</span></h3>
           {% if col.tasks %}
             <ul class="tasklist">
               {% for t in col.tasks %}
-                <li>
+                <li class="task-card" draggable="true" data-task-id="{{ t.pk }}">
                   <span>{{ t.title }}{% if t.recur_every_days %} <span class="pill">↻{{ t.recur_every_days }}d</span>{% endif %} <span class="proj-tag">— {{ t.project.name }}</span></span>
-                  <form class="inline" method="post" action="{% url 'week_commit' t.pk %}">
-                    {% csrf_token %}
-                    <button type="submit" class="link-btn" aria-label="Remove {{ t.title }} from this sprint">uncommit</button>
-                  </form>
+                  <span class="task-card-actions">
+                    <form class="move-form" method="post" action="{% url 'week_move' t.pk %}"
+                          data-task-id="{{ t.pk }}" data-current-status="{{ t.status }}">
+                      {% csrf_token %}
+                      <label class="visually-hidden" for="move-{{ t.pk }}">Move {{ t.title }} to</label>
+                      <select id="move-{{ t.pk }}" name="status">
+                        {% for key, label in status_choices %}
+                          <option value="{{ key }}" {% if key == t.status %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                      </select>
+                      <button type="submit" class="link-btn">Move</button>
+                    </form>
+                    <form class="inline" method="post" action="{% url 'week_commit' t.pk %}">
+                      {% csrf_token %}
+                      <button type="submit" class="link-btn" aria-label="Remove {{ t.title }} from this sprint">uncommit</button>
+                    </form>
+                  </span>
                 </li>
               {% endfor %}
             </ul>
@@ -75,4 +89,34 @@
       <button type="submit">Close out this sprint</button>
     </form>
   </section>
+
+  <script>
+    (function () {
+      document.querySelectorAll(".task-card[draggable]").forEach(function (card) {
+        card.addEventListener("dragstart", function (e) {
+          e.dataTransfer.setData("text/plain", card.dataset.taskId);
+          e.dataTransfer.effectAllowed = "move";
+        });
+      });
+      document.querySelectorAll(".column").forEach(function (col) {
+        col.addEventListener("dragover", function (e) {
+          e.preventDefault();
+          col.classList.add("drag-over");
+        });
+        col.addEventListener("dragleave", function () {
+          col.classList.remove("drag-over");
+        });
+        col.addEventListener("drop", function (e) {
+          e.preventDefault();
+          col.classList.remove("drag-over");
+          var taskId = e.dataTransfer.getData("text/plain");
+          var targetStatus = col.dataset.status;
+          var form = document.querySelector('.move-form[data-task-id="' + taskId + '"]');
+          if (!form || form.dataset.currentStatus === targetStatus) return;
+          form.querySelector('[name="status"]').value = targetStatus;
+          form.submit();
+        });
+      });
+    })();
+  </script>
 {% endblock %}

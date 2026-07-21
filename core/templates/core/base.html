@@ -84,8 +84,14 @@
   .board { display: grid; grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
            gap: .8rem; }
   .board .column { background: var(--color-surface); border-radius: var(--radius-md);
-                    padding: .6rem; }
+                    padding: .6rem; border: 2px dashed transparent; }
+  .board .column.drag-over { border-color: var(--color-accent); }
   .board .column h3 { margin-top: 0; }
+  .task-card[draggable] { cursor: grab; }
+  .task-card[draggable]:active { cursor: grabbing; }
+  .task-card-actions { display: flex; align-items: center; gap: .5rem; flex-shrink: 0; }
+  .move-form { display: inline-flex; align-items: center; gap: .25rem; }
+  .move-form select { width: auto; font-size: .78rem; padding: .15rem .3rem; }
   .pill { display: inline-block; font-size: .72rem; letter-spacing: .02em; padding: .15rem .55rem;
           border-radius: var(--radius-lg); background: var(--color-surface);
           color: color-mix(in srgb, var(--color-text) 80%, transparent);

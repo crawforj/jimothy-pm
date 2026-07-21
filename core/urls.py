@@ -6,6 +6,7 @@ urlpatterns = [
     path("", views.today, name="today"),
     path("week/", views.week, name="week"),
     path("week/commit/<int:task_id>/", views.week_commit, name="week_commit"),
+    path("week/move/<int:task_id>/", views.week_move_status, name="week_move"),
     path("week/closeout/", views.week_closeout, name="week_closeout"),
     path("month/", views.month, name="month"),
     path("quarter/", views.quarter, name="quarter"),
