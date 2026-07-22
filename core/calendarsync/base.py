@@ -66,3 +66,25 @@ class CalendarProvider(ABC):
         """Clears the stored token. Does not revoke it server-side (out of
         scope for v1) -- signing out of the account elsewhere is the
         equivalent of a hard revoke if that's ever needed."""
+
+    @abstractmethod
+    def ensure_jimothy_calendar(self) -> str:
+        """Returns the id of a dedicated 'Jimothy' calendar, creating it via
+        the API the first time it's needed. All writes target only this
+        calendar -- Jimothy never creates, edits, or deletes anything in
+        the user's own primary calendar."""
+
+    @abstractmethod
+    def create_event(self, subject: str, start: dt.datetime, end: dt.datetime,
+                      all_day: bool) -> str:
+        """Creates an event in the Jimothy calendar, returns its source_id."""
+
+    @abstractmethod
+    def update_event(self, source_id: str, subject: str, start: dt.datetime,
+                      end: dt.datetime, all_day: bool) -> None:
+        """Updates an event Jimothy previously created via create_event."""
+
+    @abstractmethod
+    def delete_event(self, source_id: str) -> None:
+        """Deletes an event Jimothy previously created. A no-op, not an
+        error, if it's already gone (same tolerance as disconnect())."""

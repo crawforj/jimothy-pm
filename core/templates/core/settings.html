@@ -64,11 +64,13 @@
   </section>
 
   <section aria-labelledby="calendar-h">
-    <h2 id="calendar-h">Calendar sync (read-only)</h2>
+    <h2 id="calendar-h">Calendar sync</h2>
     <p class="sub">
       Connect your calendar so real meeting time counts against today's
       available hours instead of the flat estimate. Busy and Out-of-office
       time subtracts hours; Tentative shows a soft warning but doesn't.
+      Reading your calendar is always on once connected; writing to it is
+      a separate, off-by-default choice below.
     </p>
     {% for row in calendar_rows %}
       <div class="card">
@@ -83,6 +85,31 @@
             Connected as {{ row.account_label|default:"an account" }}.
             {% if row.last_synced %}Last synced {{ row.last_synced }}.{% else %}Not synced yet.{% endif %}
           </p>
+          <p class="sub">
+            {% if row.push_enabled %}
+              Pushing milestones &amp; Focus blocks to a dedicated "Jimothy"
+              calendar.
+            {% else %}
+              Not pushing anything back to your calendar yet — reads only.
+            {% endif %}
+            {% if row.key == "graph" %}
+              Turning this on requires the broader Microsoft
+              calendar-write permission — Microsoft doesn't offer a
+              narrower "only what this app created" scope.
+            {% else %}
+              Turning this on uses Google's narrowest write permission —
+              it can only see or change the "Jimothy" calendar it
+              creates, never your main one.
+            {% endif %}
+            Either way, Jimothy only ever creates, updates, or deletes
+            events inside that one dedicated calendar.
+          </p>
+          <form method="post" action="{{ row.toggle_push_url }}" class="inline">
+            {% csrf_token %}
+            <button type="submit" class="link-btn">
+              {% if row.push_enabled %}Turn off calendar writes{% else %}Turn on calendar writes{% endif %}
+            </button>
+          </form>
           <form method="post" action="{{ row.disconnect_url }}" class="inline">
             {% csrf_token %}
             <button type="submit" class="link-btn">Disconnect</button>

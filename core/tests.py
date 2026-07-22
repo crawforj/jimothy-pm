@@ -7,12 +7,16 @@ real Microsoft/Google account. The engine's own known-answer tests stay in
 engine/tests/test_engine.py; this file is for the Django layer only."""
 
 import datetime as dt
+import tempfile
+from pathlib import Path
+from unittest import mock
 
 from django.test import TestCase, override_settings
 from django.urls import reverse
 
+from core.calendarsync.base import ProviderStatus
 from core.context_processors import mascot_mood
-from core.models import Project, Staff, Task
+from core.models import Milestone, Project, PushedCalendarEvent, Staff, Task
 from core.views import _forecast_chart_data, _heatmap_data
 from engine.schedule import WeekLoad
 
@@ -273,7 +277,6 @@ class DownloadBackupTests(TestCase):
     # a real, valid, on-disk sqlite file just for this test.
     def test_returns_a_sqlite_file_attachment(self):
         import sqlite3
-        import tempfile
 
         with tempfile.NamedTemporaryFile(suffix=".sqlite3", delete=False) as tmp:
             db_path = tmp.name
@@ -298,3 +301,181 @@ class DownloadBackupTests(TestCase):
     def test_linked_from_settings_page(self):
         resp = self.client.get(reverse("settings"))
         self.assertContains(resp, reverse("download_backup"))
+
+
+def _use_temp_data_dir(testcase):
+    """Isolates tokens.py's real file writes (calendar_tokens/) to a
+    throwaway temp dir for the test's duration -- without this, any test
+    that actually calls set_push_enabled/save_token would write real files
+    into this repo's own working directory."""
+    tmpdir = tempfile.TemporaryDirectory()
+    testcase.addCleanup(tmpdir.cleanup)
+    patcher = override_settings(DATA_DIR=Path(tmpdir.name))
+    patcher.enable()
+    testcase.addCleanup(patcher.disable)
+
+
+class _FakeCalendarProvider:
+    """A minimal stand-in for GraphCalendarProvider/GoogleCalendarProvider
+    implementing only what push.py calls -- lets push.py's orchestration
+    logic be tested directly without ever making a real HTTP request."""
+
+    def __init__(self, key="graph"):
+        self.key = key
+        self.display_name = key
+        self.created = []
+        self.updated = []
+        self.deleted = []
+        self._next_id = 1
+
+    def is_configured(self):
+        return True
+
+    def status(self):
+        return ProviderStatus(connected=True)
+
+    def create_event(self, subject, start, end, all_day):
+        source_id = "%s-evt-%d" % (self.key, self._next_id)
+        self._next_id += 1
+        self.created.append(source_id)
+        return source_id
+
+    def update_event(self, source_id, subject, start, end, all_day):
+        self.updated.append(source_id)
+
+    def delete_event(self, source_id):
+        self.deleted.append(source_id)
+
+
+class PushMilestoneTests(TestCase):
+    def setUp(self):
+        self.fake = _FakeCalendarProvider()
+        providers_patch = mock.patch("core.calendarsync.push._providers",
+                                     return_value=(self.fake,))
+        providers_patch.start()
+        self.addCleanup(providers_patch.stop)
+        enabled_patch = mock.patch("core.calendarsync.push.tokens.push_enabled",
+                                   return_value=True)
+        enabled_patch.start()
+        self.addCleanup(enabled_patch.stop)
+        self.project = Project.objects.create(name="p")
+
+    def test_milestone_with_due_date_creates_pushed_event(self):
+        milestone = Milestone.objects.create(project=self.project, name="m",
+                                             due_date=dt.date(2026, 8, 1))
+        self.assertEqual(len(self.fake.created), 1)
+        self.assertTrue(PushedCalendarEvent.objects.filter(
+            milestone=milestone, provider="graph").exists())
+
+    def test_saving_again_updates_rather_than_duplicates(self):
+        milestone = Milestone.objects.create(project=self.project, name="m",
+                                             due_date=dt.date(2026, 8, 1))
+        milestone.name = "m2"
+        milestone.save()
+        self.assertEqual(len(self.fake.created), 1)
+        self.assertEqual(len(self.fake.updated), 1)
+        self.assertEqual(PushedCalendarEvent.objects.filter(milestone=milestone).count(), 1)
+
+    def test_marking_done_removes_the_push(self):
+        milestone = Milestone.objects.create(project=self.project, name="m",
+                                             due_date=dt.date(2026, 8, 1))
+        milestone.done = True
+        milestone.save()
+        self.assertEqual(len(self.fake.deleted), 1)
+        self.assertFalse(PushedCalendarEvent.objects.filter(milestone=milestone).exists())
+
+    def test_clearing_due_date_removes_the_push(self):
+        milestone = Milestone.objects.create(project=self.project, name="m",
+                                             due_date=dt.date(2026, 8, 1))
+        milestone.due_date = None
+        milestone.save()
+        self.assertEqual(len(self.fake.deleted), 1)
+
+    def test_deleting_milestone_removes_the_push(self):
+        milestone = Milestone.objects.create(project=self.project, name="m",
+                                             due_date=dt.date(2026, 8, 1))
+        milestone.delete()
+        self.assertEqual(len(self.fake.deleted), 1)
+        self.assertFalse(PushedCalendarEvent.objects.filter(milestone_id=milestone.pk).exists())
+
+    def test_milestone_without_due_date_never_pushes(self):
+        Milestone.objects.create(project=self.project, name="m")
+        self.assertEqual(len(self.fake.created), 0)
+
+    def test_provider_failure_does_not_raise(self):
+        self.fake.create_event = mock.Mock(side_effect=ValueError("boom"))
+        Milestone.objects.create(project=self.project, name="m", due_date=dt.date(2026, 8, 1))
+        # No exception means the signal receiver swallowed it, matching
+        # sync_calendar.py's own per-provider try/except.
+
+
+class FocusCalendarPushTests(TestCase):
+    def setUp(self):
+        self.fake = _FakeCalendarProvider()
+        providers_patch = mock.patch("core.calendarsync.push._providers",
+                                     return_value=(self.fake,))
+        providers_patch.start()
+        self.addCleanup(providers_patch.stop)
+        enabled_patch = mock.patch("core.calendarsync.push.tokens.push_enabled",
+                                   return_value=True)
+        enabled_patch.start()
+        self.addCleanup(enabled_patch.stop)
+        self.manager = Staff.objects.create(name="Manager", is_manager=True, active=True)
+        self.other = Staff.objects.create(name="Other", is_manager=False, active=True)
+        project = Project.objects.create(name="p")
+        self.task = Task.objects.create(project=project, title="t", status="todo", est_likely=2.0)
+
+    def test_starting_focus_as_manager_pushes_a_block(self):
+        self.client.post(reverse("focus_start", args=[self.task.pk]),
+                         {"staff_id": self.manager.pk})
+        self.assertEqual(len(self.fake.created), 1)
+
+    def test_starting_focus_as_non_manager_does_not_push(self):
+        self.client.post(reverse("focus_start", args=[self.task.pk]),
+                         {"staff_id": self.other.pk})
+        self.assertEqual(len(self.fake.created), 0)
+
+    def test_finishing_focus_removes_the_block(self):
+        self.client.post(reverse("focus_start", args=[self.task.pk]),
+                         {"staff_id": self.manager.pk})
+        self.client.post(reverse("focus_done", args=[self.task.pk]),
+                         {"staff_id": self.manager.pk})
+        self.assertEqual(len(self.fake.deleted), 1)
+
+    def test_skipping_focus_removes_the_block(self):
+        self.client.post(reverse("focus_start", args=[self.task.pk]),
+                         {"staff_id": self.manager.pk})
+        self.client.post(reverse("focus_skip", args=[self.task.pk]),
+                         {"staff_id": self.manager.pk})
+        self.assertEqual(len(self.fake.deleted), 1)
+
+
+class CalendarTogglePushTests(TestCase):
+    def setUp(self):
+        _use_temp_data_dir(self)
+
+    def test_get_not_allowed(self):
+        resp = self.client.get(reverse("calendar_toggle_push", args=["graph"]))
+        self.assertEqual(resp.status_code, 405)
+
+    def test_unknown_provider_key_does_not_crash(self):
+        resp = self.client.post(reverse("calendar_toggle_push", args=["bogus"]), follow=True)
+        self.assertRedirects(resp, reverse("settings"))
+
+    def test_toggling_flips_state(self):
+        from core.calendarsync import tokens
+
+        self.assertFalse(tokens.push_enabled("graph"))
+        self.client.post(reverse("calendar_toggle_push", args=["graph"]))
+        self.assertTrue(tokens.push_enabled("graph"))
+        self.client.post(reverse("calendar_toggle_push", args=["graph"]))
+        self.assertFalse(tokens.push_enabled("graph"))
+
+    @override_settings(**_FAKE_GRAPH_SETTINGS)
+    def test_reflected_on_settings_page(self):
+        from core.calendarsync import tokens
+
+        tokens.save_token("graph", {"account_label": "me@example.com"})
+        tokens.set_push_enabled("graph", True)
+        resp = self.client.get(reverse("settings"))
+        self.assertContains(resp, "Turn off calendar writes")

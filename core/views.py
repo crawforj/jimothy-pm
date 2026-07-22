@@ -546,7 +546,24 @@ def focus(request):
 
 @require_POST
 def focus_start(request, task_id):
-    request.session["focus_start_%s" % task_id] = dt.datetime.now().isoformat()
+    now = dt.datetime.now()
+    request.session["focus_start_%s" % task_id] = now.isoformat()
+
+    # Focus blocks (plan §7c writes) only make sense for the manager --
+    # calendar connections are global/manager-only (same v1 scope as the
+    # read sync), not per-staff, so pushing another person's Focus session
+    # onto the manager's own calendar wouldn't mean anything.
+    person_id = request.POST.get("staff_id")
+    if person_id and Staff.objects.filter(pk=person_id, is_manager=True).exists():
+        task = Task.objects.filter(pk=task_id).first()
+        if task:
+            estimated_hours = min(max(task.est_likely or 1.0, 0.5), 4.0)
+            try:
+                from core.calendarsync.push import push_focus_block
+                push_focus_block(task, now, now + dt.timedelta(hours=estimated_hours))
+            except Exception:
+                logger.exception("Jimothy focus-block push failed")
+
     return redirect(_focus_redirect(request))
 
 
@@ -571,6 +588,13 @@ def focus_done(request, task_id):
             WorkLog.objects.create(task=task, staff_id=task.assignee_id,
                                    date=dt.date.today(), hours=elapsed_hours)
     task.save()
+
+    try:
+        from core.calendarsync.push import remove_focus_block
+        remove_focus_block(task)
+    except Exception:
+        logger.exception("Jimothy focus-block removal failed")
+
     return redirect(_focus_redirect(request))
 
 
@@ -585,6 +609,13 @@ def focus_skip(request, task_id):
         if task_id not in skipped:
             skipped.append(task_id)
         request.session[key] = skipped
+
+    try:
+        from core.calendarsync.push import remove_focus_block
+        remove_focus_block(task_id)
+    except Exception:
+        logger.exception("Jimothy focus-block removal failed")
+
     return redirect(_focus_redirect(request))
 
 
@@ -605,6 +636,8 @@ def settings_view(request):
         settings_obj.save()
         return redirect("settings")
 
+    from core.calendarsync import tokens
+
     calendar_rows = []
     for provider in (GraphCalendarProvider(), GoogleCalendarProvider()):
         status = provider.status()
@@ -619,6 +652,8 @@ def settings_view(request):
             "last_synced": last_synced,
             "connect_url": reverse("calendar_connect_%s" % provider.key),
             "disconnect_url": reverse("calendar_disconnect", args=[provider.key]),
+            "push_enabled": tokens.push_enabled(provider.key),
+            "toggle_push_url": reverse("calendar_toggle_push", args=[provider.key]),
         })
 
     return render(request, "core/settings.html", {
@@ -701,4 +736,17 @@ def calendar_sync_now(request):
     except Exception:
         logger.exception("Jimothy manual calendar sync failed")
         messages.error(request, "Sync failed -- see the server log.")
+    return redirect("settings")
+
+
+@require_POST
+def calendar_toggle_push(request, provider_key):
+    from core.calendarsync import tokens
+
+    provider = _calendar_provider(provider_key)
+    if provider:
+        enabled = not tokens.push_enabled(provider_key)
+        tokens.set_push_enabled(provider_key, enabled)
+        messages.success(request, "%s calendar writes %s." % (
+            provider.display_name, "enabled" if enabled else "disabled"))
     return redirect("settings")

@@ -242,13 +242,22 @@ box for every downloader — see USER_GUIDE.md's "Connecting your calendar."
   for a non-primary staff row) but is inert until a later phase lets
   individual staff connect their own calendars.
 
-**Writes (not yet built -- explicit later phase):**
-- Push project **milestones/deadlines as all-day events** in a dedicated
-  "Jimothy" calendar, never the main one.
-- **Focus blocks:** from Focus Mode, one click reserves a calendar block for
-  the current ONE thing.
-- Would stay one-directional per item (Jimothy → its own calendar/folder
-  only); Jimothy would never modify or delete events it didn't create.
+**Writes (done, 2026-07-21):**
+- Project **milestones/deadlines pushed as all-day events** into a dedicated
+  "Jimothy" calendar (`core/calendarsync/push.py`, wired via a `post_save`/
+  `pre_delete` signal on `Milestone` — `core/signals.py`), never the user's
+  main calendar. Graph uses `Calendars.ReadWrite` (no narrower scope
+  exists); Google uses `calendar.app.created`, a materially tighter
+  "only what this app made" permission.
+- **Focus blocks:** starting a task in Focus Mode reserves a calendar
+  block sized to its estimate (0.5-4h); finishing or skipping it removes
+  the block. Manager-only, matching calendar connections being
+  global/manager-scoped, not per-staff.
+- One-directional per item, enforced by `PushedCalendarEvent`: Jimothy
+  only ever updates or deletes an event it created itself, tracked by
+  that table, never anything else in either calendar. Off by default —
+  an explicit per-provider toggle on Settings, separate from just being
+  connected.
 
 **Scheduling:**
 - Sync runs on demand from Settings' "Sync now," plus automatically every

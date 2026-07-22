@@ -30,4 +30,6 @@ urlpatterns = [
     path("calendar/disconnect/<str:provider_key>/", views.calendar_disconnect,
          name="calendar_disconnect"),
     path("calendar/sync-now/", views.calendar_sync_now, name="calendar_sync_now"),
+    path("calendar/push/<str:provider_key>/toggle/", views.calendar_toggle_push,
+         name="calendar_toggle_push"),
 ]

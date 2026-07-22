@@ -294,3 +294,30 @@ class WorkLog(models.Model):
 
     def __str__(self):
         return "%s: %.1fh on %s" % (self.staff.name, self.hours, self.task.title)
+
+
+class PushedCalendarEvent(models.Model):
+    """The write-side counterpart to CalendarEvent's read-side sync (plan
+    §7c writes): tracks exactly what Jimothy itself created in each
+    provider's dedicated 'Jimothy' calendar, so it only ever updates or
+    deletes events it created -- never anything else. Kept as a separate
+    model rather than folded into CalendarEvent, whose own docstring
+    states it's "read-mostly, never hand-authored"."""
+    milestone = models.ForeignKey(Milestone, on_delete=models.CASCADE, null=True, blank=True,
+                                  related_name="pushed_events")
+    task = models.ForeignKey(Task, on_delete=models.CASCADE, null=True, blank=True,
+                             related_name="pushed_focus_block")
+    provider = models.CharField(max_length=10, choices=CalendarEvent.PROVIDER_CHOICES)
+    source_id = models.CharField(max_length=300)
+    pushed_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["provider", "milestone"], name="uniq_pushed_milestone",
+                                    condition=models.Q(milestone__isnull=False)),
+            models.UniqueConstraint(fields=["provider", "task"], name="uniq_pushed_focus_block",
+                                    condition=models.Q(task__isnull=False)),
+        ]
+
+    def __str__(self):
+        return "%s: %s" % (self.provider, self.milestone or self.task)

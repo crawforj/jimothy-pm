@@ -18,13 +18,24 @@ from core.calendarsync import tokens
 from core.calendarsync.base import CalendarProvider, ProviderStatus, RawCalendarEvent
 from engine.calendar_capacity import BusyStatus
 
+# calendar.app.created (plan §7c writes) is Google's narrowest write scope:
+# "Make secondary calendars associated with this app, and see, create,
+# change, and delete events on those calendars. Doesn't allow the app to
+# see or change any other calendar" -- a materially tighter guarantee than
+# Graph's Calendars.ReadWrite (which has no such "only what it created"
+# scope at all). Kept alongside calendar.readonly rather than replacing it,
+# since reads still need the whole primary calendar, not just Jimothy's own.
 _SCOPES = [
     "https://www.googleapis.com/auth/calendar.readonly",
+    "https://www.googleapis.com/auth/calendar.app.created",
     "openid",
     "https://www.googleapis.com/auth/userinfo.email",
 ]
 _EVENTS_URL = "https://www.googleapis.com/calendar/v3/calendars/primary/events"
 _USERINFO_URL = "https://www.googleapis.com/oauth2/v2/userinfo"
+_CALENDAR_LIST_URL = "https://www.googleapis.com/calendar/v3/users/me/calendarList"
+_CALENDARS_URL = "https://www.googleapis.com/calendar/v3/calendars"
+_JIMOTHY_CALENDAR_NAME = "Jimothy"
 
 
 def _client_config() -> dict:
@@ -147,3 +158,64 @@ class GoogleCalendarProvider(CalendarProvider):
 
     def disconnect(self) -> None:
         tokens.clear_token(self.key)
+
+    def _headers(self) -> dict:
+        return {"Authorization": "Bearer %s" % self._credentials().token}
+
+    def ensure_jimothy_calendar(self) -> str:
+        data = tokens.load_token(self.key) or {}
+        cached_id = data.get("jimothy_calendar_id")
+        if cached_id:
+            return cached_id
+
+        resp = requests.get(_CALENDAR_LIST_URL, headers=self._headers(), timeout=15)
+        resp.raise_for_status()
+        existing = next((c for c in resp.json().get("items", [])
+                         if c.get("summary") == _JIMOTHY_CALENDAR_NAME), None)
+        if existing:
+            calendar_id = existing["id"]
+        else:
+            resp = requests.post(_CALENDARS_URL, headers=self._headers(),
+                                 json={"summary": _JIMOTHY_CALENDAR_NAME}, timeout=15)
+            resp.raise_for_status()
+            calendar_id = resp.json()["id"]
+
+        data["jimothy_calendar_id"] = calendar_id
+        tokens.save_token(self.key, data)
+        return calendar_id
+
+    def _event_body(self, subject: str, start: dt.datetime, end: dt.datetime,
+                     all_day: bool) -> dict:
+        if all_day:
+            return {"summary": subject,
+                   "start": {"date": start.date().isoformat()},
+                   "end": {"date": end.date().isoformat()}}
+        return {"summary": subject,
+               "start": {"dateTime": start.isoformat()},
+               "end": {"dateTime": end.isoformat()}}
+
+    def create_event(self, subject: str, start: dt.datetime, end: dt.datetime,
+                      all_day: bool) -> str:
+        calendar_id = self.ensure_jimothy_calendar()
+        resp = requests.post(
+            "%s/calendars/%s/events" % (_CALENDARS_URL, calendar_id), headers=self._headers(),
+            json=self._event_body(subject, start, end, all_day), timeout=15)
+        resp.raise_for_status()
+        return resp.json()["id"]
+
+    def update_event(self, source_id: str, subject: str, start: dt.datetime,
+                      end: dt.datetime, all_day: bool) -> None:
+        calendar_id = self.ensure_jimothy_calendar()
+        resp = requests.patch(
+            "%s/calendars/%s/events/%s" % (_CALENDARS_URL, calendar_id, source_id),
+            headers=self._headers(), json=self._event_body(subject, start, end, all_day),
+            timeout=15)
+        resp.raise_for_status()
+
+    def delete_event(self, source_id: str) -> None:
+        calendar_id = self.ensure_jimothy_calendar()
+        resp = requests.delete(
+            "%s/calendars/%s/events/%s" % (_CALENDARS_URL, calendar_id, source_id),
+            headers=self._headers(), timeout=15)
+        if resp.status_code not in (404, 410):
+            resp.raise_for_status()

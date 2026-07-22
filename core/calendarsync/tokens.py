@@ -36,3 +36,18 @@ def clear_token(provider_key: str) -> None:
     path = token_path(provider_key)
     if path.exists():
         path.unlink()
+
+
+def push_enabled(provider_key: str) -> bool:
+    """Whether this provider is allowed to write to its own 'Jimothy'
+    calendar (plan §7c writes) -- defaults to False, an explicit opt-in
+    separate from just being connected, since writing is a materially
+    different trust level than reading."""
+    data = load_token(provider_key)
+    return bool(data and data.get("push_enabled"))
+
+
+def set_push_enabled(provider_key: str, enabled: bool) -> None:
+    data = load_token(provider_key) or {}
+    data["push_enabled"] = enabled
+    save_token(provider_key, data)

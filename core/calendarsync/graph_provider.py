@@ -16,8 +16,14 @@ from core.calendarsync import tokens
 from core.calendarsync.base import CalendarProvider, ProviderStatus, RawCalendarEvent
 from engine.calendar_capacity import BusyStatus
 
-_SCOPES = ["Calendars.Read"]
+# Calendars.ReadWrite, not just .Read, because writes (plan §7c) need to
+# create/update/delete events -- Graph has no narrower "only what this app
+# created" scope the way Google does (see google_provider.py), so this is
+# the standard trust level any Graph calendar-writing app needs. Surfaced
+# plainly in the Settings UI, not hidden.
+_SCOPES = ["Calendars.ReadWrite"]
 _GRAPH_BASE = "https://graph.microsoft.com/v1.0"
+_JIMOTHY_CALENDAR_NAME = "Jimothy"
 
 _SHOWAS_MAP = {
     "free": BusyStatus.FREE,
@@ -90,7 +96,7 @@ class GraphCalendarProvider(CalendarProvider):
             "account_label": account_label,
         })
 
-    def fetch_events(self, window_start: dt.date, window_end: dt.date) -> list[RawCalendarEvent]:
+    def _access_token(self) -> str:
         cache = self._cache()
         app = self._app(cache)
         accounts = app.get_accounts()
@@ -100,9 +106,11 @@ class GraphCalendarProvider(CalendarProvider):
         self._save_cache_if_changed(cache)
         if not result or "access_token" not in result:
             raise ValueError("Microsoft sign-in expired -- reconnect from Settings.")
+        return result["access_token"]
 
+    def fetch_events(self, window_start: dt.date, window_end: dt.date) -> list[RawCalendarEvent]:
         headers = {
-            "Authorization": "Bearer %s" % result["access_token"],
+            "Authorization": "Bearer %s" % self._access_token(),
             "Prefer": 'outlook.timezone="UTC"',
         }
         params = {
@@ -133,3 +141,66 @@ class GraphCalendarProvider(CalendarProvider):
 
     def disconnect(self) -> None:
         tokens.clear_token(self.key)
+
+    def ensure_jimothy_calendar(self) -> str:
+        data = tokens.load_token(self.key) or {}
+        cached_id = data.get("jimothy_calendar_id")
+        if cached_id:
+            return cached_id
+
+        headers = {"Authorization": "Bearer %s" % self._access_token()}
+        resp = requests.get("%s/me/calendars" % _GRAPH_BASE, headers=headers, timeout=15)
+        resp.raise_for_status()
+        existing = next((c for c in resp.json().get("value", [])
+                         if c.get("name") == _JIMOTHY_CALENDAR_NAME), None)
+        if existing:
+            calendar_id = existing["id"]
+        else:
+            resp = requests.post("%s/me/calendars" % _GRAPH_BASE, headers=headers,
+                                 json={"name": _JIMOTHY_CALENDAR_NAME}, timeout=15)
+            resp.raise_for_status()
+            calendar_id = resp.json()["id"]
+
+        data["jimothy_calendar_id"] = calendar_id
+        tokens.save_token(self.key, data)
+        return calendar_id
+
+    def _event_body(self, subject: str, start: dt.datetime, end: dt.datetime,
+                     all_day: bool) -> dict:
+        # Graph always wants a full ISO dateTime, even for all-day events --
+        # isAllDay is what actually marks it as one, there's no separate
+        # date-only field the way Google's API has.
+        return {
+            "subject": subject,
+            "isAllDay": all_day,
+            "start": {"dateTime": start.isoformat(), "timeZone": "UTC"},
+            "end": {"dateTime": end.isoformat(), "timeZone": "UTC"},
+        }
+
+    def create_event(self, subject: str, start: dt.datetime, end: dt.datetime,
+                      all_day: bool) -> str:
+        calendar_id = self.ensure_jimothy_calendar()
+        headers = {"Authorization": "Bearer %s" % self._access_token()}
+        resp = requests.post(
+            "%s/me/calendars/%s/events" % (_GRAPH_BASE, calendar_id), headers=headers,
+            json=self._event_body(subject, start, end, all_day), timeout=15)
+        resp.raise_for_status()
+        return resp.json()["id"]
+
+    def update_event(self, source_id: str, subject: str, start: dt.datetime,
+                      end: dt.datetime, all_day: bool) -> None:
+        calendar_id = self.ensure_jimothy_calendar()
+        headers = {"Authorization": "Bearer %s" % self._access_token()}
+        resp = requests.patch(
+            "%s/me/calendars/%s/events/%s" % (_GRAPH_BASE, calendar_id, source_id),
+            headers=headers, json=self._event_body(subject, start, end, all_day), timeout=15)
+        resp.raise_for_status()
+
+    def delete_event(self, source_id: str) -> None:
+        calendar_id = self.ensure_jimothy_calendar()
+        headers = {"Authorization": "Bearer %s" % self._access_token()}
+        resp = requests.delete(
+            "%s/me/calendars/%s/events/%s" % (_GRAPH_BASE, calendar_id, source_id),
+            headers=headers, timeout=15)
+        if resp.status_code != 404:
+            resp.raise_for_status()
