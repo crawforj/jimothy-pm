@@ -26,6 +26,18 @@ Projects, Staff, and Reports are all built and working. See
 [PROJECT_PLAN.md](PROJECT_PLAN.md) for the full design rationale and
 [USER_GUIDE.md](USER_GUIDE.md) for a walkthrough of every page.
 
+## Screenshots
+
+| | |
+|-|-|
+| [![Today: a per-person ordered task queue, blockers and chase list surfaced first](docs/screenshots/today.png)](docs/screenshots/today.png) | [![Week: a drag-and-drop sprint board with To do, Doing, Blocked, and Waiting on external columns](docs/screenshots/week.png)](docs/screenshots/week.png) |
+| Today — this morning's briefing, wins and blockers first | Week — the sprint board |
+| [![Report: a burndown chart and a Monte Carlo P50/P85 completion forecast range bar](docs/screenshots/report.png)](docs/screenshots/report.png) | [![Staff: a team capacity heatmap across the next six weeks](docs/screenshots/staff.png)](docs/screenshots/staff.png) |
+| Reports — burndown chart + Monte Carlo forecast | Staff — team capacity heatmap |
+
+All from the example portfolio that loads automatically on first run — see
+"Quick start" below.
+
 ## Quick start
 
 Whichever path you use, you'll land on a populated portfolio, not an empty
