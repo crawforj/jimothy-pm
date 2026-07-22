@@ -7,6 +7,19 @@ external API yet, so nothing has needed a major bump).
 
 ## [Unreleased]
 
+### Added
+
+- README "Screenshots" section (Today, Week, Reports, Staff, Focus).
+
+### Fixed
+
+- The mascot-mood dev comment in `base.html` used Django's `{# #}`
+  single-line comment syntax across four lines, so it was never actually
+  parsed as a comment — it rendered as literal text in the shared header
+  on every page. Now uses `{% comment %}`/`{% endcomment %}`.
+- The Week sprint board's 4-column layout had no wrap behavior, clipping
+  the Move dropdown/button at realistic content widths.
+
 ## [0.4.0] - 2026-07-21
 
 ### Added
