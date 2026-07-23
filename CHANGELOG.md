@@ -7,6 +7,8 @@ external API yet, so nothing has needed a major bump).
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-07-23
+
 ### Added
 
 - README "Screenshots" section (Today, Week, Reports, Staff, Focus).
